@@ -6,6 +6,7 @@ package cmd
 
 import (
 	"fmt"
+	"qq/pkg/rabbitqq"
 
 	"github.com/spf13/cobra"
 )
@@ -22,6 +23,12 @@ This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("add called")
+
+		queue, _ := rootCmd.Flags().GetString("queue")
+		c := rabbitqq.NewClient(queue)
+		key := args[0]
+		value := args[1]
+		c.Add(key, value)
 	},
 }
 

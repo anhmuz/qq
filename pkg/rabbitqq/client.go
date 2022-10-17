@@ -12,13 +12,15 @@ type Client interface {
 }
 
 type client struct {
+	queue string
 	//r rabbitmq client
 }
 
 var _ Client = client{}
 
-func NewClient() Client {
-	return client{}
+func NewClient(queue string) Client {
+	fmt.Printf("create new client - queue: %v\n ", queue)
+	return client{queue: queue}
 }
 
 func (c client) Add(key string, value string) {
