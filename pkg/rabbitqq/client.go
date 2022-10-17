@@ -7,17 +7,18 @@ import (
 type Client interface {
 	Add(key string, value string)
 	Remove(key string)
-	Get(key string)
-	GetAll()
+	Get(key string) string
+	GetAll() map[string]string
 }
 
 type client struct {
 	//r rabbitmq client
 }
 
+var _ Client = client{}
+
 func NewClient() Client {
-	c := client{}
-	return c
+	return client{}
 }
 
 func (c client) Add(key string, value string) {
@@ -29,11 +30,12 @@ func (c client) Remove(key string) {
 
 }
 
-func (c client) Get(key string) {
+func (c client) Get(key string) string {
 	fmt.Printf("rabbitmq client: get key:%v\n", key)
-
+	return ""
 }
 
-func (c client) GetAll() {
+func (c client) GetAll() map[string]string {
 	fmt.Println("rabbitmq client: get all")
+	return nil
 }
