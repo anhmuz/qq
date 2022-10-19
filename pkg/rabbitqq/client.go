@@ -7,7 +7,7 @@ import (
 type Client interface {
 	Add(key string, value string)
 	Remove(key string)
-	Get(key string) string
+	Get(key string) *string
 	GetAll() map[string]string
 }
 
@@ -32,9 +32,9 @@ func (c client) Remove(key string) {
 
 }
 
-func (c client) Get(key string) string {
+func (c client) Get(key string) *string {
 	fmt.Printf("rabbitmq client: get key:%v\n", key)
-	return ""
+	return nil
 }
 
 func (c client) GetAll() map[string]string {
