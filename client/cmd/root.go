@@ -20,5 +20,5 @@ func Execute() {
 }
 
 func init() {
-	rootCmd.PersistentFlags().String("queue", "", "Queue name")
+	rootCmd.PersistentFlags().String("queue", "hello", "Queue name")
 }
