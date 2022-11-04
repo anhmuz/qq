@@ -18,8 +18,17 @@ var getAllCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		c := rabbitqq.NewClient(queue)
-		c.GetAll()
+
+		c, err := rabbitqq.NewClient(queue)
+		if err != nil {
+			return err
+		}
+
+		_, err = c.GetAll()
+		if err != nil {
+			return err
+		}
+
 		return nil
 	},
 }

@@ -18,10 +18,19 @@ var addCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		c := rabbitqq.NewClient(queue)
+
+		c, err := rabbitqq.NewClient(queue)
+		if err != nil {
+			return err
+		}
+
 		key := args[0]
 		value := args[1]
-		c.Add(key, value)
+		err = c.Add(key, value)
+		if err != nil {
+			return err
+		}
+
 		return nil
 	},
 }

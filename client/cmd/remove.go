@@ -18,9 +18,18 @@ var removeCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		c := rabbitqq.NewClient(queue)
+
+		c, err := rabbitqq.NewClient(queue)
+		if err != nil {
+			return err
+		}
+
 		key := args[0]
-		c.Remove(key)
+		err = c.Remove(key)
+		if err != nil {
+			return err
+		}
+
 		return nil
 	},
 }

@@ -3,13 +3,14 @@ package cmd
 import (
 	"os"
 	"path/filepath"
+	"qq/pkg/rabbitqq"
 
 	"github.com/spf13/cobra"
 )
 
 var rootCmd = &cobra.Command{
 	Use:   filepath.Base(os.Args[0]),
-	Short: "CRUD client",
+	Short: "QQ client",
 }
 
 func Execute() {
@@ -20,5 +21,5 @@ func Execute() {
 }
 
 func init() {
-	rootCmd.PersistentFlags().String("queue", "hello", "Queue name")
+	rootCmd.PersistentFlags().String("queue", rabbitqq.RpcQueue, "Queue name")
 }
