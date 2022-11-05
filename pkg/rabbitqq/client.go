@@ -2,7 +2,9 @@ package rabbitqq
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"qq/models/rabbitqq"
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -65,46 +67,84 @@ func connect(queue string) (*amqp.Channel, error) {
 
 func (c client) Add(key string, value string) error {
 	fmt.Printf("rabbitmq client: add key:%v, value:%v\n", key, value)
-	s := fmt.Sprintf("add key: %s, value: %s", key, value)
-	err := c.send(s)
-	return err
+
+	command := rabbitqq.Command{
+		Name:  "add",
+		Key:   key,
+		Value: value,
+	}
+
+	err := c.send(&command)
+	if err != nil {
+		return fmt.Errorf("failed to add key %v, value %v: %w", key, value, err)
+	}
+	return nil
 }
 
 func (c client) Remove(key string) error {
-	fmt.Printf("rabbitmq client:  key:%v\n", key)
-	s := fmt.Sprintf("remove key: %s", key)
-	err := c.send(s)
-	return err
+	fmt.Printf("rabbitmq client: remove key:%v\n", key)
+
+	command := rabbitqq.Command{
+		Name: "remove",
+		Key:  key,
+	}
+
+	err := c.send(&command)
+	if err != nil {
+		return fmt.Errorf("failed to remove key %v: %w", key, err)
+	}
+	return nil
 }
 
 func (c client) Get(key string) (*string, error) {
 	fmt.Printf("rabbitmq client: get key:%v\n", key)
-	s := fmt.Sprintf("get key: %s", key)
-	err := c.send(s)
-	return nil, err
+
+	command := rabbitqq.Command{
+		Name: "get",
+		Key:  key,
+	}
+
+	err := c.send(&command)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get key %v: %w", key, err)
+	}
+	return nil, nil
 }
 
 func (c client) GetAll() (map[string]string, error) {
 	fmt.Println("rabbitmq client: get all")
-	err := c.send("get all")
-	return nil, err
+
+	command := rabbitqq.Command{
+		Name: "get-all",
+	}
+
+	err := c.send(&command)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get all: %w", err)
+	}
+	return nil, nil
 }
 
-func (c client) send(item string) error {
+func (c client) send(command *rabbitqq.Command) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	err := c.channel.PublishWithContext(ctx,
+	jsonCommand, err := json.Marshal(command)
+	if err != nil {
+		return fmt.Errorf("failed to produce JSON: %w", err)
+	}
+
+	err = c.channel.PublishWithContext(ctx,
 		"",
 		c.queue,
 		false,
 		false,
 		amqp.Publishing{
-			ContentType: "text/plain",
-			Body:        []byte(item),
+			ContentType: "application/json",
+			Body:        jsonCommand,
 		})
 	if err != nil {
-		return fmt.Errorf("Failed to request: %w", err)
+		return fmt.Errorf("failed to request: %w", err)
 	}
 	return nil
 }

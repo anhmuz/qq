@@ -1,8 +1,9 @@
 package rabbitqq
 
 import (
+	"encoding/json"
 	"fmt"
-	"log"
+	rabbitqqCommand "qq/models/rabbitqq"
 	"qq/pkg/rabbitqq"
 	"qq/services/qq"
 
@@ -19,7 +20,7 @@ type server struct {
 	channel *amqp.Channel
 }
 
-var _ Server = &server{}
+var _ Server = server{}
 
 func NewServer(queue string, service qq.Service) (Server, error) {
 	fmt.Printf("create new RabbitMQ server - queue: %v\n ", queue)
@@ -62,7 +63,7 @@ func connect(queue string) (*amqp.Channel, error) {
 	return ch, nil
 }
 
-func (s *server) Serve() error {
+func (s server) Serve() error {
 	msgs, err := s.channel.Consume(
 		s.queue,
 		"",
@@ -77,12 +78,27 @@ func (s *server) Serve() error {
 	}
 
 	for msg := range msgs {
-		log.Printf("Received a message: %s", msg.Body)
+		command := rabbitqqCommand.Command{}
+		err := json.Unmarshal(msg.Body, &command)
+		if err != nil {
+			return fmt.Errorf("failed to parse JSON: %w", err)
+		}
+		fmt.Printf("%+v\n", command)
+		s.parse(command)
 	}
 
 	return nil
 }
 
-func (s server) parse() {
-
+func (s server) parse(command rabbitqqCommand.Command) {
+	switch command.Name {
+	case "add":
+		s.service.Add(command.Key, command.Value)
+	case "remove":
+		s.service.Remove(command.Key)
+	case "get":
+		s.service.Get(command.Key)
+	case "get-all":
+		s.service.GetAll()
+	}
 }
