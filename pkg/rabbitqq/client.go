@@ -4,11 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"qq/models/rabbitqq"
+	"log"
+	"math/rand"
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
+
+const CallbackQueue = "callback_queue"
 
 type Client interface {
 	Add(key string, value string) error
@@ -20,14 +23,15 @@ type Client interface {
 type client struct {
 	queue   string
 	channel *amqp.Channel
+	msgs    <-chan amqp.Delivery
 }
 
 var _ Client = client{}
 
 func NewClient(queue string) (cl Client, err error) {
-	fmt.Printf("create new rabbitmq client - queue: %v\n ", queue)
+	log.Printf("create new rabbitmq client - queue: %v\n ", queue)
 
-	ch, err := connect(queue)
+	ch, msgs, err := connect(queue)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect: %w", err)
 	}
@@ -35,21 +39,22 @@ func NewClient(queue string) (cl Client, err error) {
 	return client{
 		queue:   queue,
 		channel: ch,
+		msgs:    msgs,
 	}, nil
 }
 
-func connect(queue string) (*amqp.Channel, error) {
+func connect(queue string) (*amqp.Channel, <-chan amqp.Delivery, error) {
 	conn, err := amqp.Dial(AmqpServerURL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to RabbitMQ: %w", err)
+		return nil, nil, fmt.Errorf("failed to connect to RabbitMQ: %w", err)
 	}
 
 	ch, err := conn.Channel()
 	if err != nil {
-		return nil, fmt.Errorf("failed to open a channel: %w", err)
+		return nil, nil, fmt.Errorf("failed to open a channel: %w", err)
 	}
 
-	q, err := ch.QueueDeclare(
+	_, err = ch.QueueDeclare(
 		queue,
 		false,
 		false,
@@ -57,79 +62,142 @@ func connect(queue string) (*amqp.Channel, error) {
 		false,
 		nil,
 	)
-	_ = q
 	if err != nil {
-		return nil, fmt.Errorf("failed to declare a queue: %w", err)
+		return nil, nil, fmt.Errorf("failed to declare a queue: %w", err)
+	}
+	_, err = ch.QueueDeclare(
+		CallbackQueue,
+		false,
+		false,
+		false,
+		false,
+		nil,
+	)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to declare a callback queue: %w", err)
 	}
 
-	return ch, nil
+	msgs, err := ch.Consume(
+		CallbackQueue,
+		"",
+		true,
+		false,
+		false,
+		false,
+		nil,
+	)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to register a consumer: %w", err)
+	}
+
+	return ch, msgs, nil
 }
 
 func (c client) Add(key string, value string) error {
-	fmt.Printf("rabbitmq client: add key:%v, value:%v\n", key, value)
-
-	command := rabbitqq.Command{
+	message := AddMessage{
 		Name:  "add",
 		Key:   key,
 		Value: value,
 	}
 
-	err := c.send(&command)
+	log.Printf("rabbitmq client: %+v\n", message)
+
+	corrId := randomString(32)
+
+	err := c.sendMessage(message, corrId)
 	if err != nil {
-		return fmt.Errorf("failed to add key %v, value %v: %w", key, value, err)
+		return fmt.Errorf("failed to send %+v: %w", message, err)
 	}
+
+	reply, err := c.receiveMessage(corrId)
+	if err != nil {
+		return fmt.Errorf("failed to receive reply: %w", err)
+	}
+
+	log.Printf("reply: %+v", reply.(AddReplyMessage))
+
 	return nil
 }
 
 func (c client) Remove(key string) error {
-	fmt.Printf("rabbitmq client: remove key:%v\n", key)
-
-	command := rabbitqq.Command{
+	message := RemoveMessage{
 		Name: "remove",
 		Key:  key,
 	}
 
-	err := c.send(&command)
+	log.Printf("rabbitmq client: %+v\n", message)
+
+	corrId := randomString(32)
+
+	err := c.sendMessage(message, corrId)
 	if err != nil {
-		return fmt.Errorf("failed to remove key %v: %w", key, err)
+		return fmt.Errorf("failed to send %+v: %w", message, err)
 	}
+
+	reply, err := c.receiveMessage(corrId)
+	if err != nil {
+		return fmt.Errorf("failed to receive reply: %w", err)
+	}
+
+	log.Printf("reply: %+v", reply.(RemoveReplyMessage))
+
 	return nil
 }
 
 func (c client) Get(key string) (*string, error) {
-	fmt.Printf("rabbitmq client: get key:%v\n", key)
-
-	command := rabbitqq.Command{
+	message := GetMessage{
 		Name: "get",
 		Key:  key,
 	}
 
-	err := c.send(&command)
+	log.Printf("rabbitmq client: %+v\n", message)
+
+	corrId := randomString(32)
+
+	err := c.sendMessage(message, corrId)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get key %v: %w", key, err)
+		return nil, fmt.Errorf("failed to send %+v: %w", message, err)
 	}
-	return nil, nil
+
+	reply, err := c.receiveMessage(corrId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to receive reply: %w", err)
+	}
+
+	log.Printf("reply: %+v", reply.(GetReplyMessage))
+
+	return reply.(GetReplyMessage).Value, nil
 }
 
 func (c client) GetAll() (map[string]string, error) {
-	fmt.Println("rabbitmq client: get all")
-
-	command := rabbitqq.Command{
-		Name: "get-all",
+	message := GetAllMessage{
+		Name: "get all",
 	}
 
-	err := c.send(&command)
+	log.Printf("rabbitmq client: %+v\n", message)
+
+	corrId := randomString(32)
+
+	err := c.sendMessage(message, corrId)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get all: %w", err)
+		return nil, fmt.Errorf("failed to send %+v: %w", message, err)
 	}
-	return nil, nil
+
+	reply, err := c.receiveMessage(corrId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to receive reply: %w", err)
+	}
+
+	log.Printf("reply: %+v", reply.(GetAllReplyMessage))
+
+	return reply.(GetAllReplyMessage).Entities, nil
 }
 
-func (c client) send(command *rabbitqq.Command) error {
+func (c client) sendMessage(message interface{}, corrId string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	jsonCommand, err := json.Marshal(command)
+	jsonMessage, err := json.Marshal(message)
 	if err != nil {
 		return fmt.Errorf("failed to produce JSON: %w", err)
 	}
@@ -140,11 +208,41 @@ func (c client) send(command *rabbitqq.Command) error {
 		false,
 		false,
 		amqp.Publishing{
-			ContentType: "application/json",
-			Body:        jsonCommand,
+			ContentType:   "application/json",
+			CorrelationId: corrId,
+			ReplyTo:       CallbackQueue,
+			Body:          jsonMessage,
 		})
 	if err != nil {
-		return fmt.Errorf("failed to request: %w", err)
+		return fmt.Errorf("failed to publish a message: %w", err)
 	}
 	return nil
+}
+
+func (c client) receiveMessage(corrId string) (interface{}, error) {
+	var message interface{}
+
+	for msg := range c.msgs {
+		if corrId == msg.CorrelationId {
+			err := json.Unmarshal(msg.Body, &message)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse JSON: %w", err)
+			}
+			break
+		}
+	}
+
+	return message, nil
+}
+
+func randomString(l int) string {
+	bytes := make([]byte, l)
+	for i := 0; i < l; i++ {
+		bytes[i] = byte(randInt(65, 90))
+	}
+	return string(bytes)
+}
+
+func randInt(min int, max int) int {
+	return min + rand.Intn(max-min)
 }

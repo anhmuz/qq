@@ -3,12 +3,21 @@ package main
 import (
 	"fmt"
 	"qq/pkg/rabbitqq"
+	"qq/repos/qq"
 	rabbitqqSrv "qq/server/servers/rabbitqq"
-	"qq/services/qq"
+	qqServ "qq/services/qq"
 )
 
 func main() {
-	service := qq.NewService()
+	database, err := qq.NewDatabase()
+	if err != nil {
+		panic(fmt.Errorf("failed to create new qq database: %w", err))
+	}
+
+	service, err := qqServ.NewService(database)
+	if err != nil {
+		panic(fmt.Errorf("failed to create new qq service: %w", err))
+	}
 
 	server, err := rabbitqqSrv.NewServer(rabbitqq.RpcQueue, service)
 	if err != nil {

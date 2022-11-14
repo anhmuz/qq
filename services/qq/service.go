@@ -1,41 +1,46 @@
 package qq
 
 import (
-	"fmt"
+	"log"
+	"qq/models"
+	"qq/repos/qq"
 )
 
 type Service interface {
-	Add(key string, value string)
-	Remove(key string)
-	Get(key string) *string
-	GetAll() map[string]string
+	Add(entity models.Entity) bool
+	Remove(key string) bool
+	Get(key string) *models.Entity
+	GetAll() []models.Entity
 }
 
 type service struct {
+	database qq.Database
 }
 
 var _ Service = service{}
 
-func NewService() Service {
-	fmt.Println("create new service")
-	return service{}
+func NewService(database qq.Database) (Service, error) {
+	return service{
+		database: database,
+	}, nil
 }
 
-func (c service) Add(key string, value string) {
-	fmt.Printf("service: add key:%v, value:%v\n", key, value)
+func (s service) Add(entity models.Entity) bool {
+	log.Printf("service: add %+v\n", entity)
+	return s.database.Add(entity)
 }
 
-func (c service) Remove(key string) {
-	fmt.Printf("service: remove key:%v\n", key)
-
+func (s service) Remove(key string) bool {
+	log.Printf("service: remove %s\n", key)
+	return s.database.Remove(key)
 }
 
-func (c service) Get(key string) *string {
-	fmt.Printf("service: get key:%v\n", key)
-	return nil
+func (s service) Get(key string) *models.Entity {
+	log.Printf("service: get %s\n", key)
+	return s.database.Get(key)
 }
 
-func (c service) GetAll() map[string]string {
-	fmt.Println("service: get all")
-	return nil
+func (s service) GetAll() []models.Entity {
+	log.Println("service: get all")
+	return s.database.GetAll()
 }
