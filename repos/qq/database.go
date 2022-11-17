@@ -13,21 +13,21 @@ type database struct {
 	entities []models.Entity
 }
 
-var _ Database = database{}
+var _ Database = &database{}
 
 func NewDatabase() (Database, error) {
-	return database{
+	return &database{
 		entities: []models.Entity{},
 	}, nil
 }
 
-func (d database) Add(entity models.Entity) bool {
+func (d *database) Add(entity models.Entity) bool {
 	d.entities = append(d.entities, entity)
 
 	return true
 }
 
-func (d database) Remove(key string) bool {
+func (d *database) Remove(key string) bool {
 	for i, entity := range d.entities {
 		if entity.Key == key {
 			d.entities = append(d.entities[:i], d.entities[i+1:]...)
@@ -38,7 +38,7 @@ func (d database) Remove(key string) bool {
 	return false
 }
 
-func (d database) Get(key string) *models.Entity {
+func (d *database) Get(key string) *models.Entity {
 	for _, entity := range d.entities {
 		if entity.Key == key {
 			return &entity
@@ -47,6 +47,6 @@ func (d database) Get(key string) *models.Entity {
 	return nil
 }
 
-func (d database) GetAll() []models.Entity {
+func (d *database) GetAll() []models.Entity {
 	return d.entities
 }

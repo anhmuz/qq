@@ -80,47 +80,28 @@ func (s server) Serve() error {
 	}
 
 	for msg := range msgs {
-		var message interface{}
-		err := json.Unmarshal(msg.Body, &message)
+		err = s.handleRawMessage(msg.Body, msg.CorrelationId, msg.ReplyTo)
 		if err != nil {
-			return fmt.Errorf("failed to parse JSON: %w", err)
+			return fmt.Errorf("failed to handle message: %w", err)
 		}
-		s.parse(message, msg.CorrelationId, msg.ReplyTo)
 	}
 
 	return nil
 }
 
-func (s server) parse(message interface{}, corrId string, replyTo string) {
-	convertor, _ := NewConvertor()
-
-	switch message.(type) {
-	case rabbitqq.AddMessage:
-		entity := convertor.AddMessageToEntity(message.(rabbitqq.AddMessage))
-		addReplyMessage := convertor.BoolToAddReplyMessage(s.service.Add(entity))
-		s.sendMessage(addReplyMessage, corrId, replyTo)
-
-	case rabbitqq.RemoveMessage:
-		key := convertor.RemoveMessageToString(message.(rabbitqq.RemoveMessage))
-		removeReplyMessage := convertor.BoolToRemoveReplyMessage(s.service.Remove(key))
-		s.sendMessage(removeReplyMessage, corrId, replyTo)
-
-	case rabbitqq.GetMessage:
-		key := convertor.GetMessageToString(message.(rabbitqq.GetMessage))
-		getReplyMessage := convertor.EntityToGetReplyMessage(s.service.Get(key))
-		s.sendMessage(getReplyMessage, corrId, replyTo)
-
-	case rabbitqq.GetAllMessage:
-		getAllReplyMessage := convertor.EntitiesToGetAllReplyMessage(s.service.GetAll())
-		s.sendMessage(getAllReplyMessage, corrId, replyTo)
+func handleMessage[Message any, ReplyMessage any](s server, body []byte, corrId string, replyTo string, proc func(message Message) ReplyMessage) error {
+	var message Message
+	err := json.Unmarshal(body, &message)
+	if err != nil {
+		return fmt.Errorf("failed to parse JSON: %w", err)
 	}
-}
 
-func (s server) sendMessage(message interface{}, corrId string, replyTo string) error {
+	replyMessage := proc(message)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	jsonMessage, err := json.Marshal(message)
+	jsonReplyMessage, err := json.Marshal(replyMessage)
 	if err != nil {
 		return fmt.Errorf("failed to produce JSON: %w", err)
 	}
@@ -133,10 +114,64 @@ func (s server) sendMessage(message interface{}, corrId string, replyTo string) 
 		amqp.Publishing{
 			ContentType:   "application/json",
 			CorrelationId: corrId,
-			Body:          jsonMessage,
+			Body:          jsonReplyMessage,
 		})
 	if err != nil {
-		return fmt.Errorf("failed to publish a message: %w", err)
+		return fmt.Errorf("failed to publish a reply message: %w", err)
+	}
+
+	return nil
+}
+
+func (s server) handleRawMessage(body []byte, corrId string, replyTo string) error {
+	var baseMessage rabbitqq.BaseMessage
+	err := json.Unmarshal(body, &baseMessage)
+	if err != nil {
+		return fmt.Errorf("failed to parse JSON: %w", err)
+	}
+
+	convertor, _ := NewConvertor()
+
+	switch baseMessage.Name {
+	case "add":
+		err = handleMessage(s, body, corrId, replyTo,
+			func(addMessage rabbitqq.AddMessage) rabbitqq.AddReplyMessage {
+				entity := convertor.AddMessageToEntity(addMessage)
+				a := convertor.BoolToAddReplyMessage(s.service.Add(entity))
+				return a
+			})
+		if err != nil {
+			return fmt.Errorf("failed to handle add message: %w", err)
+		}
+
+	case "remove":
+		err = handleMessage(s, body, corrId, replyTo,
+			func(removeMessage rabbitqq.RemoveMessage) rabbitqq.RemoveReplyMessage {
+				key := convertor.RemoveMessageToString(removeMessage)
+				return convertor.BoolToRemoveReplyMessage(s.service.Remove(key))
+			})
+		if err != nil {
+			return fmt.Errorf("failed to handle remove message: %w", err)
+		}
+
+	case "get":
+		err = handleMessage(s, body, corrId, replyTo,
+			func(getMessage rabbitqq.GetMessage) rabbitqq.GetReplyMessage {
+				key := convertor.GetMessageToString(getMessage)
+				return convertor.EntityToGetReplyMessage(s.service.Get(key))
+			})
+		if err != nil {
+			return fmt.Errorf("failed to handle get message: %w", err)
+		}
+
+	case "get all":
+		err = handleMessage(s, body, corrId, replyTo,
+			func(getAllMessage rabbitqq.GetAllMessage) rabbitqq.GetAllReplyMessage {
+				return convertor.EntitiesToGetAllReplyMessage(s.service.GetAll())
+			})
+		if err != nil {
+			return fmt.Errorf("failed to handle add message: %w", err)
+		}
 	}
 
 	return nil
