@@ -137,8 +137,7 @@ func (s server) handleRawMessage(body []byte, corrId string, replyTo string) err
 		err = handleMessage(s, body, corrId, replyTo,
 			func(addMessage rabbitqq.AddMessage) rabbitqq.AddReplyMessage {
 				entity := convertor.AddMessageToEntity(addMessage)
-				a := convertor.BoolToAddReplyMessage(s.service.Add(entity))
-				return a
+				return convertor.BoolToAddReplyMessage(s.service.Add(entity))
 			})
 		if err != nil {
 			return fmt.Errorf("failed to handle add message: %w", err)
