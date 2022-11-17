@@ -25,7 +25,7 @@ var removeCmd = &cobra.Command{
 		}
 
 		key := args[0]
-		err = c.Remove(key)
+		_, err = c.Remove(key)
 		if err != nil {
 			return err
 		}
