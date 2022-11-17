@@ -173,7 +173,6 @@ func (c client) Get(key string) (*string, error) {
 	}
 
 	log.Printf("reply: %+v", replyMessage)
-	//log.Printf("value: %+v", *replyMessage.Value)
 
 	return replyMessage.Value, nil
 }
