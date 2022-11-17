@@ -12,7 +12,7 @@ type Convertor interface {
 	BoolToRemoveReplyMessage(bool) rabbitqq.RemoveReplyMessage
 	GetMessageToString(rabbitqq.GetMessage) string
 	EntityToGetReplyMessage(*models.Entity) rabbitqq.GetReplyMessage
-	EntitiesToGetAllReplyMessage([]models.Entity) rabbitqq.GetAllReplyMessage
+	EntitiesToGetAllReplyMessage(map[string]models.Entity) rabbitqq.GetAllReplyMessage
 }
 
 type convertor struct {
@@ -66,7 +66,7 @@ func (c convertor) EntityToGetReplyMessage(entity *models.Entity) rabbitqq.GetRe
 	}
 }
 
-func (c convertor) EntitiesToGetAllReplyMessage(entities []models.Entity) rabbitqq.GetAllReplyMessage {
+func (c convertor) EntitiesToGetAllReplyMessage(entities map[string]models.Entity) rabbitqq.GetAllReplyMessage {
 	data := make([]rabbitqq.Entity, 0, len(entities))
 
 	for _, entity := range entities {
