@@ -96,7 +96,7 @@ func connect(queue string) (*amqp.Channel, <-chan amqp.Delivery, error) {
 
 func (c client) Add(key string, value string) (bool, error) {
 	message := AddMessage{
-		BaseMessage: BaseMessage{Name: "add"},
+		BaseMessage: BaseMessage{Name: AddMessageName},
 		Key:         key,
 		Value:       value,
 	}
@@ -123,7 +123,7 @@ func (c client) Add(key string, value string) (bool, error) {
 
 func (c client) Remove(key string) (bool, error) {
 	message := RemoveMessage{
-		BaseMessage: BaseMessage{Name: "remove"},
+		BaseMessage: BaseMessage{Name: RemoveMessageName},
 		Key:         key,
 	}
 
@@ -149,7 +149,7 @@ func (c client) Remove(key string) (bool, error) {
 
 func (c client) Get(key string) (*string, error) {
 	message := GetMessage{
-		BaseMessage: BaseMessage{Name: "get"},
+		BaseMessage: BaseMessage{Name: GetMessageName},
 		Key:         key,
 	}
 
@@ -176,7 +176,7 @@ func (c client) Get(key string) (*string, error) {
 
 func (c client) GetAll() (map[string]string, error) {
 	message := GetAllMessage{
-		BaseMessage: BaseMessage{Name: "get all"},
+		BaseMessage: BaseMessage{Name: GetAllMessageName},
 	}
 
 	log.Printf("rabbitmq client: %+v\n", message)
