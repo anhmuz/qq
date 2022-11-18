@@ -225,7 +225,7 @@ func sendMessage[Message any](c client, message Message, corrId string) error {
 	return nil
 }
 
-func receiveMessage[ReplyMessage any](c client, corrId string, replyMessage *ReplyMessage) error {
+func receiveMessage(c client, corrId string, replyMessage interface{}) error {
 	for msg := range c.msgs {
 		if corrId == msg.CorrelationId {
 			err := json.Unmarshal(msg.Body, replyMessage)
