@@ -33,7 +33,7 @@ func (c convertor) AddMessageToEntity(message rabbitqq.AddMessage) models.Entity
 
 func (c convertor) BoolToAddReplyMessage(added bool) rabbitqq.AddReplyMessage {
 	return rabbitqq.AddReplyMessage{
-		BaseReplyMessage: rabbitqq.BaseReplyMessage{Name: "add reply"},
+		BaseReplyMessage: rabbitqq.BaseReplyMessage{Name: AddReplyMessageName},
 		Added:            added,
 	}
 }
@@ -44,7 +44,7 @@ func (c convertor) RemoveMessageToString(message rabbitqq.RemoveMessage) string 
 
 func (c convertor) BoolToRemoveReplyMessage(removed bool) rabbitqq.RemoveReplyMessage {
 	return rabbitqq.RemoveReplyMessage{
-		BaseReplyMessage: rabbitqq.BaseReplyMessage{Name: "remove reply"},
+		BaseReplyMessage: rabbitqq.BaseReplyMessage{Name: RemoveReplyMessageName},
 		Removed:          removed,
 	}
 }
@@ -56,12 +56,12 @@ func (c convertor) GetMessageToString(message rabbitqq.GetMessage) string {
 func (c convertor) EntityToGetReplyMessage(entity *models.Entity) rabbitqq.GetReplyMessage {
 	if entity != nil {
 		return rabbitqq.GetReplyMessage{
-			BaseReplyMessage: rabbitqq.BaseReplyMessage{Name: "get reply"},
+			BaseReplyMessage: rabbitqq.BaseReplyMessage{Name: GetReplyMessageName},
 			Value:            &entity.Value,
 		}
 	}
 	return rabbitqq.GetReplyMessage{
-		BaseReplyMessage: rabbitqq.BaseReplyMessage{Name: "get reply"},
+		BaseReplyMessage: rabbitqq.BaseReplyMessage{Name: GetReplyMessageName},
 		Value:            nil,
 	}
 }
@@ -72,7 +72,7 @@ func (c convertor) EntitiesToGetAllReplyMessage(entities []models.Entity) rabbit
 		data[entity.Key] = entity.Value
 	}
 	return rabbitqq.GetAllReplyMessage{
-		BaseReplyMessage: rabbitqq.BaseReplyMessage{Name: "get all reply"},
+		BaseReplyMessage: rabbitqq.BaseReplyMessage{Name: GetAllReplyMessageName},
 		Entities:         data,
 	}
 }
