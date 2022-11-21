@@ -45,5 +45,5 @@ type GetReplyMessage struct {
 
 type GetAllReplyMessage struct {
 	BaseReplyMessage
-	Entities map[string]string `json:"entities"`
+	Entities []Entity `json:"entities"`
 }
