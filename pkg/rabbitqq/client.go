@@ -17,7 +17,7 @@ type Client interface {
 	Add(key string, value string) (bool, error)
 	Remove(key string) (bool, error)
 	Get(key string) (*string, error)
-	GetAll() ([]EntityItem, error)
+	GetAll() ([]Entity, error)
 }
 
 type client struct {
@@ -174,7 +174,7 @@ func (c client) Get(key string) (*string, error) {
 	return replyMessage.Value, nil
 }
 
-func (c client) GetAll() ([]EntityItem, error) {
+func (c client) GetAll() ([]Entity, error) {
 	message := GetAllMessage{
 		BaseMessage: BaseMessage{Name: GetAllMessageName},
 	}
