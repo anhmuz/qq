@@ -67,7 +67,7 @@ func (c convertor) EntityToGetReplyMessage(entity *models.Entity) rabbitqq.GetRe
 }
 
 func (c convertor) EntitiesToGetAllReplyMessage(entities []models.Entity) rabbitqq.GetAllReplyMessage {
-	data := []rabbitqq.Entity{}
+	data := make([]rabbitqq.Entity, 0, len(entities))
 
 	for _, entity := range entities {
 		data = append(data, rabbitqq.Entity{
