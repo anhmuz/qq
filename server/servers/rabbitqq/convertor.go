@@ -70,7 +70,10 @@ func (c convertor) EntitiesToGetAllReplyMessage(entities []models.Entity) rabbit
 	data := []rabbitqq.EntityItem{}
 
 	for _, entity := range entities {
-		data = append(data, rabbitqq.EntityItem{Key: entity.Key, Value: entity.Value})
+		data = append(data, rabbitqq.EntityItem{
+			Key:   entity.Key,
+			Value: entity.Value,
+		})
 	}
 
 	return rabbitqq.GetAllReplyMessage{
