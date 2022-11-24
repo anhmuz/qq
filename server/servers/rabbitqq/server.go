@@ -130,14 +130,12 @@ func (s server) handleRawMessage(body []byte, corrId string, replyTo string) err
 		return fmt.Errorf("failed to parse JSON: %w", err)
 	}
 
-	convertor, _ := NewConvertor()
-
 	switch baseMessage.Name {
 	case "add":
 		err = handleMessage(s, body, corrId, replyTo,
 			func(addMessage rabbitqq.AddMessage) rabbitqq.AddReplyMessage {
-				entity := convertor.AddMessageToEntity(addMessage)
-				return convertor.BoolToAddReplyMessage(s.service.Add(entity))
+				entity := FromAddMessage(addMessage)
+				return ToAddReplyMessage(s.service.Add(entity))
 			})
 		if err != nil {
 			return fmt.Errorf("failed to handle add message: %w", err)
@@ -146,8 +144,8 @@ func (s server) handleRawMessage(body []byte, corrId string, replyTo string) err
 	case "remove":
 		err = handleMessage(s, body, corrId, replyTo,
 			func(removeMessage rabbitqq.RemoveMessage) rabbitqq.RemoveReplyMessage {
-				key := convertor.RemoveMessageToString(removeMessage)
-				return convertor.BoolToRemoveReplyMessage(s.service.Remove(key))
+				key := FromRemoveMessage(removeMessage)
+				return ToRemoveReplyMessage(s.service.Remove(key))
 			})
 		if err != nil {
 			return fmt.Errorf("failed to handle remove message: %w", err)
@@ -156,8 +154,8 @@ func (s server) handleRawMessage(body []byte, corrId string, replyTo string) err
 	case "get":
 		err = handleMessage(s, body, corrId, replyTo,
 			func(getMessage rabbitqq.GetMessage) rabbitqq.GetReplyMessage {
-				key := convertor.GetMessageToString(getMessage)
-				return convertor.EntityToGetReplyMessage(s.service.Get(key))
+				key := FromGetMessage(getMessage)
+				return ToGetReplyMessage(s.service.Get(key))
 			})
 		if err != nil {
 			return fmt.Errorf("failed to handle get message: %w", err)
@@ -166,7 +164,7 @@ func (s server) handleRawMessage(body []byte, corrId string, replyTo string) err
 	case "get all":
 		err = handleMessage(s, body, corrId, replyTo,
 			func(getAllMessage rabbitqq.GetAllMessage) rabbitqq.GetAllReplyMessage {
-				return convertor.EntitiesToGetAllReplyMessage(s.service.GetAll())
+				return ToGetAllReplyMessage(s.service.GetAll())
 			})
 		if err != nil {
 			return fmt.Errorf("failed to handle add message: %w", err)
