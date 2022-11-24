@@ -10,43 +10,42 @@ type Database interface {
 }
 
 type database struct {
-	entities []models.Entity
+	entities map[string]models.Entity
 }
 
 var _ Database = &database{}
 
 func NewDatabase() (Database, error) {
 	return &database{
-		entities: []models.Entity{},
+		entities: map[string]models.Entity{},
 	}, nil
 }
 
 func (d *database) Add(entity models.Entity) bool {
-	d.entities = append(d.entities, entity)
+	d.entities[entity.Key] = entity
 
 	return true
 }
 
 func (d *database) Remove(key string) bool {
-	for i, entity := range d.entities {
-		if entity.Key == key {
-			d.entities = append(d.entities[:i], d.entities[i+1:]...)
-			return true
-		}
-	}
+	delete(d.entities, key)
 
-	return false
+	return true
 }
 
 func (d *database) Get(key string) *models.Entity {
-	for _, entity := range d.entities {
-		if entity.Key == key {
-			return &entity
-		}
+	entity, present := d.entities[key]
+	if !present {
+		return nil
 	}
-	return nil
+	return &entity
 }
 
 func (d *database) GetAll() []models.Entity {
-	return d.entities
+	entities := make([]models.Entity, 0, len(d.entities))
+	for _, entity := range d.entities {
+		entities = append(entities, entity)
+	}
+
+	return entities
 }
