@@ -47,9 +47,9 @@ func ToGetReplyMessage(entity *models.Entity) rabbitqq.GetReplyMessage {
 	}
 }
 
-func ToGetAllReplyMessage(entities map[string]models.Entity) rabbitqq.GetAllReplyMessage {
+func ToGetAllReplyMessage(entities []models.Entity) rabbitqq.GetAllReplyMessage {
 	data := make([]rabbitqq.Entity, 0, len(entities))
-	
+
 	for _, entity := range entities {
 		data = append(data, rabbitqq.Entity{
 			Key:   entity.Key,
