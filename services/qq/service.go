@@ -10,7 +10,7 @@ type Service interface {
 	Add(entity models.Entity) bool
 	Remove(key string) bool
 	Get(key string) *models.Entity
-	GetAll() map[string]models.Entity
+	GetAll() []models.Entity
 }
 
 type service struct {
@@ -40,7 +40,7 @@ func (s service) Get(key string) *models.Entity {
 	return s.database.Get(key)
 }
 
-func (s service) GetAll() map[string]models.Entity {
+func (s service) GetAll() []models.Entity {
 	log.Println("service: get all")
 	return s.database.GetAll()
 }

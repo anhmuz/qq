@@ -6,7 +6,7 @@ type Database interface {
 	Add(entity models.Entity) bool
 	Remove(key string) bool
 	Get(key string) *models.Entity
-	GetAll() map[string]models.Entity
+	GetAll() []models.Entity
 }
 
 type database struct {
@@ -41,6 +41,11 @@ func (d *database) Get(key string) *models.Entity {
 	return &entity
 }
 
-func (d *database) GetAll() map[string]models.Entity {
-	return d.entities
+func (d *database) GetAll() []models.Entity {
+	entities := make([]models.Entity, 0, len(d.entities))
+	for _, entity := range d.entities {
+		entities = append(entities, entity)
+	}
+
+	return entities
 }
