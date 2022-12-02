@@ -227,12 +227,16 @@ func sendMessage[Message any](c client, message Message, corrId string) error {
 
 func receiveMessage(c client, corrId string, replyMessage interface{}) error {
 	for msg := range c.msgs {
-		if corrId == msg.CorrelationId {
+		receivedCorrId := msg.CorrelationId
+
+		if corrId == receivedCorrId {
 			err := json.Unmarshal(msg.Body, replyMessage)
 			if err != nil {
 				return fmt.Errorf("failed to parse JSON: %w", err)
 			}
 			break
+		} else {
+			log.Printf("receive different correlation id: %s", receivedCorrId)
 		}
 	}
 
