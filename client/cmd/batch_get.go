@@ -27,7 +27,6 @@ var batchGetCmd = &cobra.Command{
 		ch := make(chan error, len(args))
 
 		for _, key := range args {
-			key := key
 			go func(key string) {
 				_, err = c.Get(key)
 				ch <- err
