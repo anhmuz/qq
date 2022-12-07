@@ -7,10 +7,13 @@ import (
 	"log"
 	"qq/pkg/rabbitqq"
 	"qq/services/qq"
+	"sync"
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
+
+const ThreadCount = 20
 
 type Server interface {
 	Serve() error
@@ -79,12 +82,24 @@ func (s server) Serve() error {
 		return fmt.Errorf("failed to register a consumer: %w", err)
 	}
 
-	for msg := range msgs {
-		err = s.handleRawMessage(msg.Body, msg.CorrelationId, msg.ReplyTo)
-		if err != nil {
-			return fmt.Errorf("failed to handle message: %w", err)
-		}
+	var wg sync.WaitGroup
+
+	for i := 0; i < ThreadCount; i++ {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			for msg := range msgs {
+				err = s.handleRawMessage(msg.Body, msg.CorrelationId, msg.ReplyTo)
+				if err != nil {
+					log.Println(fmt.Errorf("failed to handle message: %w", err))
+				}
+			}
+		}()
 	}
+
+	wg.Wait()
 
 	return nil
 }
