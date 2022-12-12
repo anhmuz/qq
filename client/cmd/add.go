@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"log"
 	"qq/pkg/rabbitqq"
 
 	"github.com/spf13/cobra"
@@ -26,10 +27,12 @@ var addCmd = &cobra.Command{
 
 		key := args[0]
 		value := args[1]
-		_, err = c.Add(key, value)
+		added, err := c.Add(key, value)
 		if err != nil {
 			return err
 		}
+
+		log.Printf("Added: %v", added)
 
 		return nil
 	},

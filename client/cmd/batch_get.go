@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"log"
 	"qq/pkg/rabbitqq"
 
 	"github.com/spf13/cobra"
@@ -25,10 +26,13 @@ var batchGetCmd = &cobra.Command{
 		}
 
 		ch := make(chan error, len(args))
+		channels := make([]chan interface{}, len(args))
 
-		for _, key := range args {
+		for i, key := range args {
+			i := i
 			go func(key string) {
-				_, err = c.Get(key)
+				chr, err := c.GetAsync(key)
+				channels[i] = chr
 				ch <- err
 			}(key)
 		}
@@ -38,6 +42,10 @@ var batchGetCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
+		}
+
+		for _, chr := range channels {
+			log.Printf("reply: %+v", <-chr)
 		}
 
 		return nil

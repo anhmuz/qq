@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"sync"
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -18,15 +19,23 @@ type Client interface {
 	Remove(key string) (bool, error)
 	Get(key string) (*string, error)
 	GetAll() ([]Entity, error)
+	GetAsync(key string) (chan interface{}, error)
 }
 
 type client struct {
-	queue   string
-	channel *amqp.Channel
-	msgs    <-chan amqp.Delivery
+	queue     string
+	channel   *amqp.Channel
+	msgs      <-chan amqp.Delivery
+	mu        sync.Mutex
+	waitQueue map[string]PendingReply
 }
 
-var _ Client = client{}
+var _ Client = &client{}
+
+type PendingReply struct {
+	ch         chan interface{}
+	emptyReply interface{}
+}
 
 func NewClient(queue string) (cl Client, err error) {
 	log.Printf("create new rabbitmq client - queue: %v\n ", queue)
@@ -36,11 +45,35 @@ func NewClient(queue string) (cl Client, err error) {
 		return nil, fmt.Errorf("failed to connect: %w", err)
 	}
 
-	return client{
-		queue:   queue,
-		channel: ch,
-		msgs:    msgs,
-	}, nil
+	client := client{
+		queue:     queue,
+		channel:   ch,
+		msgs:      msgs,
+		waitQueue: make(map[string]PendingReply),
+	}
+
+	go client.receiveReplies()
+
+	return &client, nil
+}
+
+func (c *client) receiveReplies() {
+	for msg := range c.msgs {
+		c.mu.Lock()
+		pendingReply, ok := c.waitQueue[msg.CorrelationId]
+		if !ok {
+			log.Println("unexpected correlation id")
+			continue
+		}
+		c.mu.Unlock()
+
+		err := json.Unmarshal(msg.Body, pendingReply.emptyReply)
+		if err != nil {
+			log.Println(fmt.Errorf("failed to parse JSON: %w", err))
+		}
+
+		pendingReply.ch <- pendingReply.emptyReply
+	}
 }
 
 func connect(queue string) (*amqp.Channel, <-chan amqp.Delivery, error) {
@@ -94,7 +127,7 @@ func connect(queue string) (*amqp.Channel, <-chan amqp.Delivery, error) {
 	return ch, msgs, nil
 }
 
-func (c client) Add(key string, value string) (bool, error) {
+func (c *client) Add(key string, value string) (bool, error) {
 	message := AddMessage{
 		BaseMessage: BaseMessage{Name: AddMessageName},
 		Key:         key,
@@ -105,23 +138,15 @@ func (c client) Add(key string, value string) (bool, error) {
 
 	corrId := randomString(32)
 
-	err := sendMessage(c, message, corrId)
+	chr, err := sendMessage(c, message, corrId, &AddReplyMessage{})
 	if err != nil {
 		return false, fmt.Errorf("failed to send %+v: %w", message, err)
 	}
 
-	var replyMessage AddReplyMessage
-	err = receiveMessage(c, corrId, &replyMessage)
-	if err != nil {
-		return false, fmt.Errorf("failed to receive reply: %w", err)
-	}
-
-	log.Printf("reply: %+v", replyMessage)
-
-	return replyMessage.Added, nil
+	return (<-chr).(*AddReplyMessage).Added, nil
 }
 
-func (c client) Remove(key string) (bool, error) {
+func (c *client) Remove(key string) (bool, error) {
 	message := RemoveMessage{
 		BaseMessage: BaseMessage{Name: RemoveMessageName},
 		Key:         key,
@@ -131,23 +156,15 @@ func (c client) Remove(key string) (bool, error) {
 
 	corrId := randomString(32)
 
-	err := sendMessage(c, message, corrId)
+	chr, err := sendMessage(c, message, corrId, &RemoveReplyMessage{})
 	if err != nil {
 		return false, fmt.Errorf("failed to send %+v: %w", message, err)
 	}
 
-	var replyMessage RemoveReplyMessage
-	err = receiveMessage(c, corrId, &replyMessage)
-	if err != nil {
-		return false, fmt.Errorf("failed to receive reply: %w", err)
-	}
-
-	log.Printf("reply: %+v", replyMessage)
-
-	return replyMessage.Removed, nil
+	return (<-chr).(*RemoveReplyMessage).Removed, nil
 }
 
-func (c client) Get(key string) (*string, error) {
+func (c *client) Get(key string) (*string, error) {
 	message := GetMessage{
 		BaseMessage: BaseMessage{Name: GetMessageName},
 		Key:         key,
@@ -157,24 +174,33 @@ func (c client) Get(key string) (*string, error) {
 
 	corrId := randomString(32)
 
-	err := sendMessage(c, message, corrId)
+	chr, err := sendMessage(c, message, corrId, &GetReplyMessage{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to send %+v: %w", message, err)
 	}
 
-	var replyMessage GetReplyMessage
-
-	err = receiveMessage(c, corrId, &replyMessage)
-	if err != nil {
-		return nil, fmt.Errorf("failed to receive reply: %w", err)
-	}
-
-	log.Printf("reply: %+v", replyMessage)
-
-	return replyMessage.Value, nil
+	return (<-chr).(*GetReplyMessage).Value, nil
 }
 
-func (c client) GetAll() ([]Entity, error) {
+func (c *client) GetAsync(key string) (chan interface{}, error) {
+	message := GetMessage{
+		BaseMessage: BaseMessage{Name: GetMessageName},
+		Key:         key,
+	}
+
+	log.Printf("rabbitmq client: %+v\n", message)
+
+	corrId := randomString(32)
+
+	chr, err := sendMessage(c, message, corrId, &GetReplyMessage{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to send %+v: %w", message, err)
+	}
+
+	return chr, nil
+}
+
+func (c *client) GetAll() ([]Entity, error) {
 	message := GetAllMessage{
 		BaseMessage: BaseMessage{Name: GetAllMessageName},
 	}
@@ -183,29 +209,28 @@ func (c client) GetAll() ([]Entity, error) {
 
 	corrId := randomString(32)
 
-	err := sendMessage(c, message, corrId)
+	chr, err := sendMessage(c, message, corrId, &GetAllReplyMessage{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to send %+v: %w", message, err)
 	}
 
-	var replyMessage GetAllReplyMessage
-	err = receiveMessage(c, corrId, &replyMessage)
-	if err != nil {
-		return nil, fmt.Errorf("failed to receive reply: %w", err)
-	}
-
-	log.Printf("reply: %+v", replyMessage)
-
-	return replyMessage.Entities, nil
+	return (<-chr).(*GetAllReplyMessage).Entities, nil
 }
 
-func sendMessage[Message any](c client, message Message, corrId string) error {
+func sendMessage[Message any, Reply any](c *client, message Message, corrId string, emptyReply Reply) (chan interface{}, error) {
+	c.mu.Lock()
+	c.waitQueue[corrId] = PendingReply{
+		ch:         make(chan interface{}, 1),
+		emptyReply: emptyReply,
+	}
+	c.mu.Unlock()
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	jsonMessage, err := json.Marshal(message)
 	if err != nil {
-		return fmt.Errorf("failed to produce JSON: %w", err)
+		return nil, fmt.Errorf("failed to produce JSON: %w", err)
 	}
 
 	err = c.channel.PublishWithContext(ctx,
@@ -220,27 +245,14 @@ func sendMessage[Message any](c client, message Message, corrId string) error {
 			Body:          jsonMessage,
 		})
 	if err != nil {
-		return fmt.Errorf("failed to publish a message: %w", err)
-	}
-	return nil
-}
-
-func receiveMessage(c client, corrId string, replyMessage interface{}) error {
-	for msg := range c.msgs {
-		receivedCorrId := msg.CorrelationId
-
-		if corrId == receivedCorrId {
-			err := json.Unmarshal(msg.Body, replyMessage)
-			if err != nil {
-				return fmt.Errorf("failed to parse JSON: %w", err)
-			}
-			break
-		} else {
-			log.Printf("receive different correlation id: %s", receivedCorrId)
-		}
+		return nil, fmt.Errorf("failed to publish a message: %w", err)
 	}
 
-	return nil
+	c.mu.Lock()
+	ch := c.waitQueue[corrId].ch
+	c.mu.Unlock()
+
+	return ch, nil
 }
 
 func randomString(l int) string {
