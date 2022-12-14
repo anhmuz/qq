@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"log"
 	"qq/pkg/rabbitqq"
 
 	"github.com/spf13/cobra"
@@ -24,9 +25,13 @@ var getAllCmd = &cobra.Command{
 			return err
 		}
 
-		_, err = c.GetAll()
+		entities, err := c.GetAll()
 		if err != nil {
 			return err
+		}
+
+		for _, entity := range entities {
+			log.Printf("Entity: %v\n", entity)
 		}
 
 		return nil

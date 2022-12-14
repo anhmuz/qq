@@ -116,8 +116,6 @@ func (c client) Add(key string, value string) (bool, error) {
 		return false, fmt.Errorf("failed to receive reply: %w", err)
 	}
 
-	log.Printf("reply: %+v", replyMessage)
-
 	return replyMessage.Added, nil
 }
 
@@ -141,8 +139,6 @@ func (c client) Remove(key string) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("failed to receive reply: %w", err)
 	}
-
-	log.Printf("reply: %+v", replyMessage)
 
 	return replyMessage.Removed, nil
 }
@@ -169,8 +165,6 @@ func (c client) Get(key string) (*string, error) {
 		return nil, fmt.Errorf("failed to receive reply: %w", err)
 	}
 
-	log.Printf("reply: %+v", replyMessage)
-
 	return replyMessage.Value, nil
 }
 
@@ -193,8 +187,6 @@ func (c client) GetAll() ([]Entity, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to receive reply: %w", err)
 	}
-
-	log.Printf("reply: %+v", replyMessage)
 
 	return replyMessage.Entities, nil
 }
