@@ -19,7 +19,7 @@ type Client interface {
 	Remove(key string) (bool, error)
 	Get(key string) (*string, error)
 	GetAll() ([]Entity, error)
-	GetAsync(key string) (chan interface{}, error)
+	GetAsync(key string) (chan ReplyError, error)
 }
 
 type client struct {
@@ -27,14 +27,19 @@ type client struct {
 	channel   *amqp.Channel
 	msgs      <-chan amqp.Delivery
 	mu        sync.Mutex
-	waitQueue map[string]PendingReply
+	waitQueue map[string]pendingReply
 }
 
 var _ Client = &client{}
 
-type PendingReply struct {
-	ch         chan interface{}
+type pendingReply struct {
+	ch         chan ReplyError
 	emptyReply interface{}
+}
+
+type ReplyError struct {
+	Reply interface{}
+	Err   error
 }
 
 func NewClient(queue string) (cl Client, err error) {
@@ -49,7 +54,7 @@ func NewClient(queue string) (cl Client, err error) {
 		queue:     queue,
 		channel:   ch,
 		msgs:      msgs,
-		waitQueue: make(map[string]PendingReply),
+		waitQueue: make(map[string]pendingReply),
 	}
 
 	go client.receiveReplies()
@@ -62,17 +67,24 @@ func (c *client) receiveReplies() {
 		c.mu.Lock()
 		pendingReply, ok := c.waitQueue[msg.CorrelationId]
 		if !ok {
-			log.Println("unexpected correlation id")
+			log.Printf("unexpected correlation id: %s\n", msg.CorrelationId)
+			c.mu.Unlock()
 			continue
 		}
+		delete(c.waitQueue, msg.CorrelationId)
 		c.mu.Unlock()
 
 		err := json.Unmarshal(msg.Body, pendingReply.emptyReply)
 		if err != nil {
-			log.Println(fmt.Errorf("failed to parse JSON: %w", err))
+			err = fmt.Errorf("failed to parse JSON: %w", err)
 		}
 
-		pendingReply.ch <- pendingReply.emptyReply
+		replyError := ReplyError{
+			Reply: pendingReply.emptyReply,
+			Err:   err,
+		}
+
+		pendingReply.ch <- replyError
 	}
 }
 
@@ -136,14 +148,14 @@ func (c *client) Add(key string, value string) (bool, error) {
 
 	log.Printf("rabbitmq client: %+v\n", message)
 
-	corrId := randomString(32)
-
-	chr, err := sendMessage(c, message, corrId, &AddReplyMessage{})
+	replyErrorCh, err := sendMessage[AddMessage, AddReplyMessage](c, message)
 	if err != nil {
 		return false, fmt.Errorf("failed to send %+v: %w", message, err)
 	}
 
-	return (<-chr).(*AddReplyMessage).Added, nil
+	replyError := <-replyErrorCh
+
+	return replyError.Reply.(*AddReplyMessage).Added, replyError.Err
 }
 
 func (c *client) Remove(key string) (bool, error) {
@@ -154,35 +166,28 @@ func (c *client) Remove(key string) (bool, error) {
 
 	log.Printf("rabbitmq client: %+v\n", message)
 
-	corrId := randomString(32)
-
-	chr, err := sendMessage(c, message, corrId, &RemoveReplyMessage{})
+	replyErrorCh, err := sendMessage[RemoveMessage, RemoveReplyMessage](c, message)
 	if err != nil {
 		return false, fmt.Errorf("failed to send %+v: %w", message, err)
 	}
 
-	return (<-chr).(*RemoveReplyMessage).Removed, nil
+	replyError := <-replyErrorCh
+
+	return replyError.Reply.(*RemoveReplyMessage).Removed, replyError.Err
 }
 
 func (c *client) Get(key string) (*string, error) {
-	message := GetMessage{
-		BaseMessage: BaseMessage{Name: GetMessageName},
-		Key:         key,
-	}
-
-	log.Printf("rabbitmq client: %+v\n", message)
-
-	corrId := randomString(32)
-
-	chr, err := sendMessage(c, message, corrId, &GetReplyMessage{})
+	replyErrorCh, err := c.GetAsync(key)
 	if err != nil {
-		return nil, fmt.Errorf("failed to send %+v: %w", message, err)
+		return nil, fmt.Errorf("failed to get key %s: %w", key, err)
 	}
 
-	return (<-chr).(*GetReplyMessage).Value, nil
+	replyError := <-replyErrorCh
+
+	return replyError.Reply.(*GetReplyMessage).Value, replyError.Err
 }
 
-func (c *client) GetAsync(key string) (chan interface{}, error) {
+func (c *client) GetAsync(key string) (chan ReplyError, error) {
 	message := GetMessage{
 		BaseMessage: BaseMessage{Name: GetMessageName},
 		Key:         key,
@@ -190,14 +195,12 @@ func (c *client) GetAsync(key string) (chan interface{}, error) {
 
 	log.Printf("rabbitmq client: %+v\n", message)
 
-	corrId := randomString(32)
-
-	chr, err := sendMessage(c, message, corrId, &GetReplyMessage{})
+	replyErrorCh, err := sendMessage[GetMessage, GetReplyMessage](c, message)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send %+v: %w", message, err)
 	}
 
-	return chr, nil
+	return replyErrorCh, nil
 }
 
 func (c *client) GetAll() ([]Entity, error) {
@@ -207,21 +210,25 @@ func (c *client) GetAll() ([]Entity, error) {
 
 	log.Printf("rabbitmq client: %+v\n", message)
 
-	corrId := randomString(32)
-
-	chr, err := sendMessage(c, message, corrId, &GetAllReplyMessage{})
+	replyErrorCh, err := sendMessage[GetAllMessage, GetAllReplyMessage](c, message)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send %+v: %w", message, err)
 	}
 
-	return (<-chr).(*GetAllReplyMessage).Entities, nil
+	replyError := <-replyErrorCh
+
+	return replyError.Reply.(*GetAllReplyMessage).Entities, replyError.Err
 }
 
-func sendMessage[Message any, Reply any](c *client, message Message, corrId string, emptyReply Reply) (chan interface{}, error) {
+func sendMessage[Message any, Reply any](c *client, message Message) (chan ReplyError, error) {
+	corrId := randomString(32)
+	var reply Reply
+	ch := make(chan ReplyError, 1)
+
 	c.mu.Lock()
-	c.waitQueue[corrId] = PendingReply{
-		ch:         make(chan interface{}, 1),
-		emptyReply: emptyReply,
+	c.waitQueue[corrId] = pendingReply{
+		ch:         ch,
+		emptyReply: &reply,
 	}
 	c.mu.Unlock()
 
@@ -247,10 +254,6 @@ func sendMessage[Message any, Reply any](c *client, message Message, corrId stri
 	if err != nil {
 		return nil, fmt.Errorf("failed to publish a message: %w", err)
 	}
-
-	c.mu.Lock()
-	ch := c.waitQueue[corrId].ch
-	c.mu.Unlock()
 
 	return ch, nil
 }
