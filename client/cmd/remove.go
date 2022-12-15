@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"log"
 	"qq/pkg/rabbitqq"
 
 	"github.com/spf13/cobra"
@@ -25,10 +26,12 @@ var removeCmd = &cobra.Command{
 		}
 
 		key := args[0]
-		_, err = c.Remove(key)
+		removed, err := c.Remove(key)
 		if err != nil {
 			return err
 		}
+
+		log.Printf("Value: %v", removed)
 
 		return nil
 	},
