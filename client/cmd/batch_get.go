@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"log"
 	"qq/pkg/rabbitqq"
 
 	"github.com/spf13/cobra"
@@ -24,20 +25,34 @@ var batchGetCmd = &cobra.Command{
 			return err
 		}
 
-		ch := make(chan error, len(args))
+		asyncReplyChannels := make([]chan rabbitqq.AsyncReply, 0, len(args))
 
 		for _, key := range args {
-			go func(key string) {
-				_, err = c.Get(key)
-				ch <- err
-			}(key)
+			asyncReplyCh, err := c.GetAsync(key)
+
+			if err != nil {
+				log.Println(err)
+				continue
+			}
+
+			asyncReplyChannels = append(asyncReplyChannels, asyncReplyCh)
 		}
 
-		for i := 0; i < len(args); i++ {
-			err := <-ch
-			if err != nil {
-				return err
+		for _, asyncReplyCh := range asyncReplyChannels {
+			asyncReply := <-asyncReplyCh
+
+			if asyncReply.Err != nil {
+				log.Println(asyncReply.Err)
+				continue
 			}
+
+			value := asyncReply.Reply.(*rabbitqq.GetReplyMessage).Value
+			if value == nil {
+				log.Println("value does not exist")
+				continue
+			}
+
+			log.Printf("value: %+v", *value)
 		}
 
 		return nil
