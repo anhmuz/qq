@@ -31,7 +31,7 @@ var removeCmd = &cobra.Command{
 			return err
 		}
 
-		log.Printf("Value: %v", removed)
+		log.Printf("Removed: %v", removed)
 
 		return nil
 	},
