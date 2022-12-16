@@ -25,33 +25,34 @@ var batchGetCmd = &cobra.Command{
 			return err
 		}
 
-		replyErrorChannels := make([]chan rabbitqq.ReplyError, 0, len(args))
+		asyncReplyChannels := make([]chan rabbitqq.AsyncReply, 0, len(args))
 
 		for _, key := range args {
-			replyErrorCh, err := c.GetAsync(key)
+			asyncReplyCh, err := c.GetAsync(key)
 
 			if err != nil {
 				log.Println(err)
-			} else {
-				replyErrorChannels = append(replyErrorChannels, replyErrorCh)
+				continue
 			}
+
+			asyncReplyChannels = append(asyncReplyChannels, asyncReplyCh)
 		}
 
-		for _, replyErrorCh := range replyErrorChannels {
-			replyError := <-replyErrorCh
+		for _, asyncReplyCh := range asyncReplyChannels {
+			asyncReply := <-asyncReplyCh
 
-			if replyError.Err != nil {
-				log.Println(replyError.Err)
+			if asyncReply.Err != nil {
+				log.Println(asyncReply.Err)
 				continue
 			}
 
-			value := replyError.Reply.(*rabbitqq.GetReplyMessage).Value
-			if value != nil {
-				log.Printf("value: %+v", *value)
+			value := asyncReply.Reply.(*rabbitqq.GetReplyMessage).Value
+			if value == nil {
+				log.Println("value does not exist")
 				continue
 			}
 
-			log.Printf("value: %+v", value)
+			log.Printf("value: %+v", *value)
 		}
 
 		return nil
