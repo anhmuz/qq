@@ -25,16 +25,15 @@ var batchGetCmd = &cobra.Command{
 			return err
 		}
 
-		replyErrorChannels := make([]chan rabbitqq.ReplyError, len(args))
+		replyErrorChannels := make([]chan rabbitqq.ReplyError, 0, len(args))
 
-		for i, key := range args {
-			i := i
-			chReplyError, err := c.GetAsync(key)
+		for _, key := range args {
+			replyErrorCh, err := c.GetAsync(key)
 
 			if err != nil {
 				log.Println(err)
 			} else {
-				replyErrorChannels[i] = chReplyError
+				replyErrorChannels = append(replyErrorChannels, replyErrorCh)
 			}
 		}
 
@@ -43,9 +42,16 @@ var batchGetCmd = &cobra.Command{
 
 			if replyError.Err != nil {
 				log.Println(replyError.Err)
-			} else {
-				log.Printf("value: %+v", *replyError.Reply.(*rabbitqq.GetReplyMessage).Value)
+				continue
 			}
+
+			value := replyError.Reply.(*rabbitqq.GetReplyMessage).Value
+			if value != nil {
+				log.Printf("value: %+v", *value)
+				continue
+			}
+
+			log.Printf("value: %+v", value)
 		}
 
 		return nil
