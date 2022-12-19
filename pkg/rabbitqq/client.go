@@ -27,10 +27,12 @@ type client struct {
 	channel       *amqp.Channel
 	msgs          <-chan amqp.Delivery
 	mu            sync.Mutex
-	callbackQueue map[string]func([]byte)
+	callbackQueue map[string]callback
 }
 
 var _ Client = &client{}
+
+type callback func([]byte)
 
 type AsyncReply[Reply any] struct {
 	Reply Reply
@@ -49,7 +51,7 @@ func NewClient(queue string) (cl Client, err error) {
 		queue:         queue,
 		channel:       ch,
 		msgs:          msgs,
-		callbackQueue: make(map[string]func([]byte)),
+		callbackQueue: make(map[string]callback),
 	}
 
 	go client.dispatch()
