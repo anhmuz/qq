@@ -25,7 +25,7 @@ var batchGetCmd = &cobra.Command{
 			return err
 		}
 
-		asyncReplyChannels := make([]chan rabbitqq.AsyncReply, 0, len(args))
+		asyncReplyChannels := make([]chan rabbitqq.AsyncReply[rabbitqq.GetReplyMessage], 0, len(args))
 
 		for _, key := range args {
 			asyncReplyCh, err := c.GetAsync(key)
@@ -46,7 +46,7 @@ var batchGetCmd = &cobra.Command{
 				continue
 			}
 
-			value := asyncReply.Reply.(*rabbitqq.GetReplyMessage).Value
+			value := asyncReply.Reply.Value
 			if value == nil {
 				log.Println("value does not exist")
 				continue

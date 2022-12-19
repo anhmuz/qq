@@ -18,27 +18,24 @@ type Client interface {
 	Add(key string, value string) (bool, error)
 	Remove(key string) (bool, error)
 	Get(key string) (*string, error)
-	GetAsync(key string) (chan AsyncReply, error)
+	GetAsync(key string) (chan AsyncReply[GetReplyMessage], error)
 	GetAll() ([]Entity, error)
 }
 
 type client struct {
-	queue     string
-	channel   *amqp.Channel
-	msgs      <-chan amqp.Delivery
-	mu        sync.Mutex
-	waitQueue map[string]waitQueueItem
+	queue         string
+	channel       *amqp.Channel
+	msgs          <-chan amqp.Delivery
+	mu            sync.Mutex
+	callbackQueue map[string]callback
 }
 
 var _ Client = &client{}
 
-type waitQueueItem struct {
-	ch         chan AsyncReply
-	emptyReply interface{}
-}
+type callback func([]byte)
 
-type AsyncReply struct {
-	Reply interface{}
+type AsyncReply[Reply any] struct {
+	Reply Reply
 	Err   error
 }
 
@@ -51,10 +48,10 @@ func NewClient(queue string) (cl Client, err error) {
 	}
 
 	client := client{
-		queue:     queue,
-		channel:   ch,
-		msgs:      msgs,
-		waitQueue: make(map[string]waitQueueItem),
+		queue:         queue,
+		channel:       ch,
+		msgs:          msgs,
+		callbackQueue: make(map[string]callback),
 	}
 
 	go client.dispatch()
@@ -129,7 +126,7 @@ func (c *client) Add(key string, value string) (bool, error) {
 
 	asyncReply := <-asyncReplyCh
 
-	return asyncReply.Reply.(*AddReplyMessage).Added, asyncReply.Err
+	return asyncReply.Reply.Added, asyncReply.Err
 }
 
 func (c *client) Remove(key string) (bool, error) {
@@ -147,7 +144,7 @@ func (c *client) Remove(key string) (bool, error) {
 
 	asyncReply := <-asyncReplyCh
 
-	return asyncReply.Reply.(*RemoveReplyMessage).Removed, asyncReply.Err
+	return asyncReply.Reply.Removed, asyncReply.Err
 }
 
 func (c *client) Get(key string) (*string, error) {
@@ -158,10 +155,10 @@ func (c *client) Get(key string) (*string, error) {
 
 	asyncReply := <-asyncReplyCh
 
-	return asyncReply.Reply.(*GetReplyMessage).Value, asyncReply.Err
+	return asyncReply.Reply.Value, asyncReply.Err
 }
 
-func (c *client) GetAsync(key string) (chan AsyncReply, error) {
+func (c *client) GetAsync(key string) (chan AsyncReply[GetReplyMessage], error) {
 	message := GetMessage{
 		BaseMessage: BaseMessage{Name: GetMessageName},
 		Key:         key,
@@ -191,19 +188,31 @@ func (c *client) GetAll() ([]Entity, error) {
 
 	asyncReply := <-asyncReplyCh
 
-	return asyncReply.Reply.(*GetAllReplyMessage).Entities, asyncReply.Err
+	return asyncReply.Reply.Entities, asyncReply.Err
 }
 
-func sendMessage[Message any, Reply any](c *client, message Message) (chan AsyncReply, error) {
+func sendMessage[Message any, Reply any](c *client, message Message) (chan AsyncReply[Reply], error) {
+	ch := make(chan AsyncReply[Reply], 1)
+
+	callback := func(body []byte) {
+		var reply Reply
+		err := json.Unmarshal(body, &reply)
+		if err != nil {
+			err = fmt.Errorf("failed to parse JSON: %w", err)
+		}
+
+		asyncReply := AsyncReply[Reply]{
+			Reply: reply,
+			Err:   err,
+		}
+
+		ch <- asyncReply
+	}
+
 	corrId := randomString(32)
-	var reply Reply
-	ch := make(chan AsyncReply, 1)
 
 	c.mu.Lock()
-	c.waitQueue[corrId] = waitQueueItem{
-		ch:         ch,
-		emptyReply: &reply,
-	}
+	c.callbackQueue[corrId] = callback
 	c.mu.Unlock()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -235,26 +244,16 @@ func sendMessage[Message any, Reply any](c *client, message Message) (chan Async
 func (c *client) dispatch() {
 	for msg := range c.msgs {
 		c.mu.Lock()
-		pendingReply, ok := c.waitQueue[msg.CorrelationId]
+		callback, ok := c.callbackQueue[msg.CorrelationId]
 		if !ok {
 			c.mu.Unlock()
 			log.Printf("unexpected correlation id: %s\n", msg.CorrelationId)
 			continue
 		}
-		delete(c.waitQueue, msg.CorrelationId)
+		delete(c.callbackQueue, msg.CorrelationId)
 		c.mu.Unlock()
 
-		err := json.Unmarshal(msg.Body, pendingReply.emptyReply)
-		if err != nil {
-			err = fmt.Errorf("failed to parse JSON: %w", err)
-		}
-
-		replyError := AsyncReply{
-			Reply: pendingReply.emptyReply,
-			Err:   err,
-		}
-
-		pendingReply.ch <- replyError
+		callback(msg.Body)
 	}
 }
 
