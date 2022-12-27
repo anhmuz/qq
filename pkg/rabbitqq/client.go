@@ -7,7 +7,6 @@ import (
 	"log"
 	"math/rand"
 	"sync"
-	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -15,11 +14,11 @@ import (
 const CallbackQueue = "callback_queue"
 
 type Client interface {
-	Add(key string, value string) (bool, error)
-	Remove(key string) (bool, error)
-	Get(key string) (*string, error)
-	GetAsync(key string) (chan AsyncReply[GetReplyMessage], error)
-	GetAll() ([]Entity, error)
+	Add(ctx context.Context, key string, value string) (bool, error)
+	Remove(ctx context.Context, key string) (bool, error)
+	Get(ctx context.Context, key string) (*string, error)
+	GetAsync(ctx context.Context, key string) (chan AsyncReply[GetReplyMessage], error)
+	GetAll(ctx context.Context) ([]Entity, error)
 }
 
 type client struct {
@@ -110,7 +109,7 @@ func connect(queue string) (*amqp.Channel, <-chan amqp.Delivery, error) {
 	return ch, msgs, nil
 }
 
-func (c *client) Add(key string, value string) (bool, error) {
+func (c *client) Add(ctx context.Context, key string, value string) (bool, error) {
 	message := AddMessage{
 		BaseMessage: BaseMessage{Name: AddMessageName},
 		Key:         key,
@@ -119,7 +118,7 @@ func (c *client) Add(key string, value string) (bool, error) {
 
 	log.Printf("rabbitmq client: %+v\n", message)
 
-	asyncReplyCh, err := sendMessage[AddMessage, AddReplyMessage](c, message)
+	asyncReplyCh, err := sendMessage[AddMessage, AddReplyMessage](ctx, c, message)
 	if err != nil {
 		return false, fmt.Errorf("failed to send %+v: %w", message, err)
 	}
@@ -129,7 +128,7 @@ func (c *client) Add(key string, value string) (bool, error) {
 	return asyncReply.Reply.Added, asyncReply.Err
 }
 
-func (c *client) Remove(key string) (bool, error) {
+func (c *client) Remove(ctx context.Context, key string) (bool, error) {
 	message := RemoveMessage{
 		BaseMessage: BaseMessage{Name: RemoveMessageName},
 		Key:         key,
@@ -137,7 +136,7 @@ func (c *client) Remove(key string) (bool, error) {
 
 	log.Printf("rabbitmq client: %+v\n", message)
 
-	asyncReplyCh, err := sendMessage[RemoveMessage, RemoveReplyMessage](c, message)
+	asyncReplyCh, err := sendMessage[RemoveMessage, RemoveReplyMessage](ctx, c, message)
 	if err != nil {
 		return false, fmt.Errorf("failed to send %+v: %w", message, err)
 	}
@@ -147,8 +146,8 @@ func (c *client) Remove(key string) (bool, error) {
 	return asyncReply.Reply.Removed, asyncReply.Err
 }
 
-func (c *client) Get(key string) (*string, error) {
-	asyncReplyCh, err := c.GetAsync(key)
+func (c *client) Get(ctx context.Context, key string) (*string, error) {
+	asyncReplyCh, err := c.GetAsync(ctx, key)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get key %s: %w", key, err)
 	}
@@ -158,7 +157,7 @@ func (c *client) Get(key string) (*string, error) {
 	return asyncReply.Reply.Value, asyncReply.Err
 }
 
-func (c *client) GetAsync(key string) (chan AsyncReply[GetReplyMessage], error) {
+func (c *client) GetAsync(ctx context.Context, key string) (chan AsyncReply[GetReplyMessage], error) {
 	message := GetMessage{
 		BaseMessage: BaseMessage{Name: GetMessageName},
 		Key:         key,
@@ -166,7 +165,7 @@ func (c *client) GetAsync(key string) (chan AsyncReply[GetReplyMessage], error) 
 
 	log.Printf("rabbitmq client: %+v\n", message)
 
-	asyncReplyCh, err := sendMessage[GetMessage, GetReplyMessage](c, message)
+	asyncReplyCh, err := sendMessage[GetMessage, GetReplyMessage](ctx, c, message)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send %+v: %w", message, err)
 	}
@@ -174,14 +173,14 @@ func (c *client) GetAsync(key string) (chan AsyncReply[GetReplyMessage], error) 
 	return asyncReplyCh, nil
 }
 
-func (c *client) GetAll() ([]Entity, error) {
+func (c *client) GetAll(ctx context.Context) ([]Entity, error) {
 	message := GetAllMessage{
 		BaseMessage: BaseMessage{Name: GetAllMessageName},
 	}
 
 	log.Printf("rabbitmq client: %+v\n", message)
 
-	asyncReplyCh, err := sendMessage[GetAllMessage, GetAllReplyMessage](c, message)
+	asyncReplyCh, err := sendMessage[GetAllMessage, GetAllReplyMessage](ctx, c, message)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send %+v: %w", message, err)
 	}
@@ -191,7 +190,7 @@ func (c *client) GetAll() ([]Entity, error) {
 	return asyncReply.Reply.Entities, asyncReply.Err
 }
 
-func sendMessage[Message any, Reply any](c *client, message Message) (chan AsyncReply[Reply], error) {
+func sendMessage[Message any, Reply any](ctx context.Context, c *client, message Message) (chan AsyncReply[Reply], error) {
 	ch := make(chan AsyncReply[Reply], 1)
 
 	callback := func(body []byte) {
@@ -214,9 +213,6 @@ func sendMessage[Message any, Reply any](c *client, message Message) (chan Async
 	c.mu.Lock()
 	c.callbackQueue[corrId] = callback
 	c.mu.Unlock()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
 
 	jsonMessage, err := json.Marshal(message)
 	if err != nil {

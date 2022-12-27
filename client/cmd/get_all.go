@@ -25,7 +25,7 @@ var getAllCmd = &cobra.Command{
 			return err
 		}
 
-		entities, err := c.GetAll()
+		entities, err := c.GetAll(cmd.Context())
 		if err != nil {
 			return err
 		}

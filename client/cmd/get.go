@@ -26,7 +26,7 @@ var getCmd = &cobra.Command{
 		}
 
 		key := args[0]
-		value, err := c.Get(key)
+		value, err := c.Get(cmd.Context(), key)
 		if err != nil {
 			return err
 		}
