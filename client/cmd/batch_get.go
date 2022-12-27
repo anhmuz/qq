@@ -28,7 +28,7 @@ var batchGetCmd = &cobra.Command{
 		asyncReplyChannels := make([]chan rabbitqq.AsyncReply[rabbitqq.GetReplyMessage], 0, len(args))
 
 		for _, key := range args {
-			asyncReplyCh, err := c.GetAsync(key)
+			asyncReplyCh, err := c.GetAsync(cmd.Context(), key)
 
 			if err != nil {
 				log.Println(err)

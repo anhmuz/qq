@@ -27,7 +27,7 @@ var addCmd = &cobra.Command{
 
 		key := args[0]
 		value := args[1]
-		added, err := c.Add(key, value)
+		added, err := c.Add(cmd.Context(), key, value)
 		if err != nil {
 			return err
 		}
