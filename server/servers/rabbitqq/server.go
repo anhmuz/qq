@@ -8,7 +8,6 @@ import (
 	"qq/pkg/rabbitqq"
 	"qq/services/qq"
 	"sync"
-	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -16,7 +15,7 @@ import (
 const ThreadCount = 20
 
 type Server interface {
-	Serve(ctx context.Context) error
+	Serve() error
 }
 
 type server struct {
@@ -27,7 +26,7 @@ type server struct {
 
 var _ Server = server{}
 
-func NewServer(ctx context.Context, queue string, service qq.Service) (Server, error) {
+func NewServer(queue string, service qq.Service) (Server, error) {
 	log.Printf("create new RabbitMQ server - queue: %v\n ", queue)
 
 	ch, err := connect(queue)
@@ -68,7 +67,7 @@ func connect(queue string) (*amqp.Channel, error) {
 	return ch, nil
 }
 
-func (s server) Serve(ctx context.Context) error {
+func (s server) Serve() error {
 	msgs, err := s.channel.Consume(
 		s.queue,
 		"",
@@ -91,6 +90,7 @@ func (s server) Serve(ctx context.Context) error {
 			defer wg.Done()
 
 			for msg := range msgs {
+				ctx := context.Background()
 				err = s.handleRawMessage(ctx, msg.Body, msg.CorrelationId, msg.ReplyTo)
 				if err != nil {
 					log.Println(fmt.Errorf("failed to handle message: %w", err))
@@ -104,7 +104,7 @@ func (s server) Serve(ctx context.Context) error {
 	return nil
 }
 
-func handleMessage[Message any, ReplyMessage any](s server, body []byte, corrId string, replyTo string, proc func(message Message) ReplyMessage) error {
+func handleMessage[Message any, ReplyMessage any](ctx context.Context, s server, body []byte, corrId string, replyTo string, proc func(message Message) ReplyMessage) error {
 	var message Message
 	err := json.Unmarshal(body, &message)
 	if err != nil {
@@ -112,9 +112,6 @@ func handleMessage[Message any, ReplyMessage any](s server, body []byte, corrId 
 	}
 
 	replyMessage := proc(message)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
 
 	jsonReplyMessage, err := json.Marshal(replyMessage)
 	if err != nil {
@@ -147,7 +144,7 @@ func (s server) handleRawMessage(ctx context.Context, body []byte, corrId string
 
 	switch baseMessage.Name {
 	case "add":
-		err = handleMessage(s, body, corrId, replyTo,
+		err = handleMessage(ctx, s, body, corrId, replyTo,
 			func(addMessage rabbitqq.AddMessage) rabbitqq.AddReplyMessage {
 				entity := FromAddMessage(addMessage)
 				return ToAddReplyMessage(s.service.Add(ctx, entity))
@@ -157,7 +154,7 @@ func (s server) handleRawMessage(ctx context.Context, body []byte, corrId string
 		}
 
 	case "remove":
-		err = handleMessage(s, body, corrId, replyTo,
+		err = handleMessage(ctx, s, body, corrId, replyTo,
 			func(removeMessage rabbitqq.RemoveMessage) rabbitqq.RemoveReplyMessage {
 				key := FromRemoveMessage(removeMessage)
 				return ToRemoveReplyMessage(s.service.Remove(ctx, key))
@@ -167,7 +164,7 @@ func (s server) handleRawMessage(ctx context.Context, body []byte, corrId string
 		}
 
 	case "get":
-		err = handleMessage(s, body, corrId, replyTo,
+		err = handleMessage(ctx, s, body, corrId, replyTo,
 			func(getMessage rabbitqq.GetMessage) rabbitqq.GetReplyMessage {
 				key := FromGetMessage(getMessage)
 				return ToGetReplyMessage(s.service.Get(ctx, key))
@@ -177,7 +174,7 @@ func (s server) handleRawMessage(ctx context.Context, body []byte, corrId string
 		}
 
 	case "get all":
-		err = handleMessage(s, body, corrId, replyTo,
+		err = handleMessage(ctx, s, body, corrId, replyTo,
 			func(getAllMessage rabbitqq.GetAllMessage) rabbitqq.GetAllReplyMessage {
 				return ToGetAllReplyMessage(s.service.GetAll(ctx))
 			})
