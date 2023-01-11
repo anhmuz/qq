@@ -4,7 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"qq/pkg/log"
+	"qq/pkg/qqcontext"
 	"qq/pkg/rabbitqq"
 	"qq/services/qq"
 	"sync"
@@ -26,8 +27,8 @@ type server struct {
 
 var _ Server = server{}
 
-func NewServer(queue string, service qq.Service) (Server, error) {
-	log.Printf("create new RabbitMQ server - queue: %v\n ", queue)
+func NewServer(ctx context.Context, queue string, service qq.Service) (Server, error) {
+	log.Debug(ctx, "create new rabbitmq server", log.Args{"queue": queue})
 
 	ch, err := connect(queue)
 	if err != nil {
@@ -90,10 +91,12 @@ func (s server) Serve() error {
 			defer wg.Done()
 
 			for msg := range msgs {
-				ctx := context.Background()
+				userId := msg.Headers["UserId"].(string)
+				ctx := qqcontext.WithUserIdValue(context.Background(), userId)
+
 				err = s.handleRawMessage(ctx, msg.Body, msg.CorrelationId, msg.ReplyTo)
 				if err != nil {
-					log.Println(fmt.Errorf("failed to handle message: %w", err))
+					log.Error(ctx, "failed to handle message", log.Args{"error": err})
 				}
 			}
 		}()

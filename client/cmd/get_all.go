@@ -2,7 +2,8 @@ package cmd
 
 import (
 	"fmt"
-	"log"
+	"qq/pkg/log"
+	"qq/pkg/qqcontext"
 	"qq/pkg/rabbitqq"
 
 	"github.com/spf13/cobra"
@@ -13,26 +14,39 @@ var getAllCmd = &cobra.Command{
 	Short: "get all items",
 	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		fmt.Println("get-all called")
-
 		queue, err := rootCmd.Flags().GetString("queue")
 		if err != nil {
 			return err
 		}
 
-		c, err := rabbitqq.NewClient(queue)
+		userId, err := rootCmd.Flags().GetString("user_id")
 		if err != nil {
 			return err
 		}
 
-		entities, err := c.GetAll(cmd.Context())
+		ctx := qqcontext.WithUserIdValue(cmd.Context(), userId)
+
+		log.Debug(ctx, "get-all called")
+
+		c, err := rabbitqq.NewClient(ctx, queue)
 		if err != nil {
+			log.Error(ctx, "failed to create new client", log.Args{"error": err})
 			return err
 		}
 
-		for _, entity := range entities {
-			log.Printf("Entity: %v\n", entity)
+		entities, err := c.GetAll(ctx)
+		if err != nil {
+			log.Error(ctx, "failed to get all", log.Args{"error": err})
+			return err
 		}
+
+		data := log.Args{}
+		for i, entity := range entities {
+			key := fmt.Sprintf("entity %v", i+1)
+			data[key] = entity
+		}
+
+		log.Info(ctx, "get-all command result", data)
 
 		return nil
 	},

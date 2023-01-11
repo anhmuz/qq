@@ -22,4 +22,5 @@ func Execute() {
 
 func init() {
 	rootCmd.PersistentFlags().String("queue", rabbitqq.RpcQueue, "Queue name")
+	rootCmd.PersistentFlags().String("user_id", rabbitqq.DefaultUserIdValue, "User ID")
 }
