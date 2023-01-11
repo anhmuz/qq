@@ -9,5 +9,3 @@ const (
 	GetMessageName    string = "get"
 	GetAllMessageName string = "get all"
 )
-
-const DefaultUserIdValue string = ""

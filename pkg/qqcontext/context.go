@@ -5,6 +5,7 @@ import (
 )
 
 const UserIdKey string = "userId"
+const DefaultUserIdValue string = ""
 
 func WithUserIdValue(ctx context.Context, value string) context.Context {
 	return context.WithValue(ctx, UserIdKey, value)
