@@ -1,8 +1,8 @@
 package cmd
 
 import (
-	"fmt"
-	"log"
+	"qq/pkg/log"
+	"qq/pkg/qqcontext"
 	"qq/pkg/rabbitqq"
 
 	"github.com/spf13/cobra"
@@ -13,25 +13,38 @@ var getCmd = &cobra.Command{
 	Short: "get item",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		fmt.Println("get called")
-
 		queue, err := rootCmd.Flags().GetString("queue")
 		if err != nil {
 			return err
 		}
 
-		c, err := rabbitqq.NewClient(queue)
+		userId, err := rootCmd.Flags().GetString("user_id")
 		if err != nil {
+			return err
+		}
+
+		ctx := qqcontext.WithUserIdValue(cmd.Context(), userId)
+
+		log.Debug(ctx, "get called")
+
+		c, err := rabbitqq.NewClient(ctx, queue)
+		if err != nil {
+			log.Error(ctx, "failed to create new client", log.Args{"error": err})
 			return err
 		}
 
 		key := args[0]
-		value, err := c.Get(cmd.Context(), key)
+		value, err := c.Get(ctx, key)
 		if err != nil {
+			log.Error(ctx, "failed to get", log.Args{"error": err, "key": key})
 			return err
 		}
 
-		log.Printf("Value: %v", value)
+		if value != nil {
+			log.Info(ctx, "get command result", log.Args{"key": key, "value": *value})
+		} else {
+			log.Info(ctx, "value does not exist", log.Args{"key": key})
+		}
 
 		return nil
 	},

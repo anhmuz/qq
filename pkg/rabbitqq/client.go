@@ -4,8 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"math/rand"
+	"qq/pkg/log"
+	"qq/pkg/qqcontext"
 	"sync"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -38,8 +39,8 @@ type AsyncReply[Reply any] struct {
 	Err   error
 }
 
-func NewClient(queue string) (cl Client, err error) {
-	log.Printf("create new rabbitmq client - queue: %v\n ", queue)
+func NewClient(ctx context.Context, queue string) (cl Client, err error) {
+	log.Debug(ctx, "create new rabbitmq client", log.Args{"queue": queue})
 
 	ch, msgs, err := connect(queue)
 	if err != nil {
@@ -53,7 +54,7 @@ func NewClient(queue string) (cl Client, err error) {
 		callbackQueue: make(map[string]callback),
 	}
 
-	go client.dispatch()
+	go client.dispatch(ctx)
 
 	return &client, nil
 }
@@ -116,7 +117,7 @@ func (c *client) Add(ctx context.Context, key string, value string) (bool, error
 		Value:       value,
 	}
 
-	log.Printf("rabbitmq client: %+v\n", message)
+	log.Debug(ctx, "rabbitmq client", log.Args{"message": message})
 
 	asyncReplyCh, err := sendMessage[AddMessage, AddReplyMessage](ctx, c, message)
 	if err != nil {
@@ -134,7 +135,7 @@ func (c *client) Remove(ctx context.Context, key string) (bool, error) {
 		Key:         key,
 	}
 
-	log.Printf("rabbitmq client: %+v\n", message)
+	log.Debug(ctx, "rabbitmq client", log.Args{"message": message})
 
 	asyncReplyCh, err := sendMessage[RemoveMessage, RemoveReplyMessage](ctx, c, message)
 	if err != nil {
@@ -163,7 +164,7 @@ func (c *client) GetAsync(ctx context.Context, key string) (chan AsyncReply[GetR
 		Key:         key,
 	}
 
-	log.Printf("rabbitmq client: %+v\n", message)
+	log.Debug(ctx, "rabbitmq client", log.Args{"message": message})
 
 	asyncReplyCh, err := sendMessage[GetMessage, GetReplyMessage](ctx, c, message)
 	if err != nil {
@@ -178,7 +179,7 @@ func (c *client) GetAll(ctx context.Context) ([]Entity, error) {
 		BaseMessage: BaseMessage{Name: GetAllMessageName},
 	}
 
-	log.Printf("rabbitmq client: %+v\n", message)
+	log.Debug(ctx, "rabbitmq client", log.Args{"message": message})
 
 	asyncReplyCh, err := sendMessage[GetAllMessage, GetAllReplyMessage](ctx, c, message)
 	if err != nil {
@@ -209,6 +210,7 @@ func sendMessage[Message any, Reply any](ctx context.Context, c *client, message
 	}
 
 	corrId := randomString(32)
+	userId := qqcontext.GetUserIdValue(ctx)
 
 	c.mu.Lock()
 	c.callbackQueue[corrId] = callback
@@ -225,6 +227,7 @@ func sendMessage[Message any, Reply any](ctx context.Context, c *client, message
 		false,
 		false,
 		amqp.Publishing{
+			Headers:       amqp.Table{"UserId": userId},
 			ContentType:   "application/json",
 			CorrelationId: corrId,
 			ReplyTo:       CallbackQueue,
@@ -237,13 +240,13 @@ func sendMessage[Message any, Reply any](ctx context.Context, c *client, message
 	return ch, nil
 }
 
-func (c *client) dispatch() {
+func (c *client) dispatch(ctx context.Context) {
 	for msg := range c.msgs {
 		c.mu.Lock()
 		callback, ok := c.callbackQueue[msg.CorrelationId]
 		if !ok {
 			c.mu.Unlock()
-			log.Printf("unexpected correlation id: %s\n", msg.CorrelationId)
+			log.Warning(ctx, "unexpected correlation id:", log.Args{"correlation_id": msg.CorrelationId})
 			continue
 		}
 		delete(c.callbackQueue, msg.CorrelationId)

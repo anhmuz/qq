@@ -1,8 +1,8 @@
 package cmd
 
 import (
-	"fmt"
-	"log"
+	"qq/pkg/log"
+	"qq/pkg/qqcontext"
 	"qq/pkg/rabbitqq"
 
 	"github.com/spf13/cobra"
@@ -13,26 +13,35 @@ var addCmd = &cobra.Command{
 	Short: "add item",
 	Args:  cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		fmt.Println("add called")
+		userId, err := rootCmd.Flags().GetString("user_id")
+		if err != nil {
+			return err
+		}
 
 		queue, err := rootCmd.Flags().GetString("queue")
 		if err != nil {
 			return err
 		}
 
-		c, err := rabbitqq.NewClient(queue)
+		ctx := qqcontext.WithUserIdValue(cmd.Context(), userId)
+
+		log.Debug(ctx, "add called")
+
+		c, err := rabbitqq.NewClient(ctx, queue)
 		if err != nil {
+			log.Error(ctx, "failed to create new client", log.Args{"error": err})
 			return err
 		}
 
 		key := args[0]
 		value := args[1]
-		added, err := c.Add(cmd.Context(), key, value)
+		added, err := c.Add(ctx, key, value)
 		if err != nil {
+			log.Error(ctx, "failed to add", log.Args{"error": err, "key": key, "value": value})
 			return err
 		}
 
-		log.Printf("Added: %v", added)
+		log.Info(ctx, "add command result", log.Args{"added": added, "key": key, "value": value})
 
 		return nil
 	},
