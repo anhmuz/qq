@@ -4,8 +4,8 @@ import (
 	"context"
 	"qq/models"
 	"qq/pkg/log"
+	"qq/repos/cacheqq"
 	"qq/repos/qq"
-	"qq/repos/redisqq"
 )
 
 type Service interface {
@@ -16,16 +16,16 @@ type Service interface {
 }
 
 type service struct {
-	database      qq.Database
-	redisDatabase redisqq.Database
+	database qq.Database
+	cache    cacheqq.Cache
 }
 
 var _ Service = service{}
 
-func NewService(database qq.Database, redisDatabase redisqq.Database) (Service, error) {
+func NewService(database qq.Database, cache cacheqq.Cache) (Service, error) {
 	return service{
-		database:      database,
-		redisDatabase: redisDatabase,
+		database: database,
+		cache:    cache,
 	}, nil
 }
 
@@ -42,12 +42,18 @@ func (s service) Remove(ctx context.Context, key string) bool {
 func (s service) Get(ctx context.Context, key string) *models.Entity {
 	log.Debug(ctx, "service: get", log.Args{"key": key})
 
-	entity, err := s.redisDatabase.Get(ctx, key)
-	if err == nil {
-		log.Debug(ctx, "service: get from redis cache", log.Args{"key": key})
+	entity, err := s.cache.GetEntity(ctx, key)
+
+	if entity != nil {
+		log.Debug(ctx, "service: get from cache", log.Args{"key": key})
 		return entity
 	}
-	log.Debug(ctx, "service: failed to get from redis cache", log.Args{"error": err})
+
+	if err == nil {
+		log.Warning(ctx, "service: key does not exist in cache", log.Args{"key": key})
+	} else {
+		log.Error(ctx, "service: failed to get from cache", log.Args{"error": err})
+	}
 
 	entity = s.database.Get(key)
 
@@ -55,11 +61,11 @@ func (s service) Get(ctx context.Context, key string) *models.Entity {
 		return nil
 	}
 
-	err = s.redisDatabase.Set(ctx, entity)
+	err = s.cache.SetEntity(ctx, entity)
 	if err == nil {
-		log.Debug(ctx, "service: set to redis cache", log.Args{"entity": entity})
+		log.Debug(ctx, "service: set to cache", log.Args{"entity": entity})
 	} else {
-		log.Debug(ctx, "service: failed to set to redis cache", log.Args{"error": err})
+		log.Error(ctx, "service: failed to set to cache", log.Args{"error": err})
 	}
 
 	return entity
