@@ -10,6 +10,8 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+const Expiration = 10 * time.Minute
+
 type Cache interface {
 	GetEntity(ctx context.Context, key string) (*models.Entity, error)
 	SetEntity(ctx context.Context, key string, entity *models.Entity) error
@@ -25,7 +27,7 @@ var _ Cache = cache{}
 func NewRedisCache() Cache {
 	redisClient := redis.NewClient(&redis.Options{
 		Addr:     rabbitqq.RedisServerAddr,
-		Password: "",
+		Password: rabbitqq.RedisServerPassword,
 		DB:       0,
 	})
 
@@ -59,7 +61,7 @@ func (c cache) SetEntity(ctx context.Context, key string, entity *models.Entity)
 		value = entity.Value
 	}
 
-	err := c.redisClient.Set(ctx, key, value, 10*time.Minute).Err()
+	err := c.redisClient.Set(ctx, key, value, Expiration).Err()
 
 	if err != nil {
 		return fmt.Errorf("failed to set key %s, value %s", key, value)
