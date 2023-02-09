@@ -25,7 +25,7 @@ var removeCmd = &cobra.Command{
 
 		ctx := qqcontext.WithUserIdValue(cmd.Context(), userId)
 
-		log.Debug(ctx, "remove called", log.Args{})
+		log.Debug(ctx, "remove called")
 
 		c, err := rabbitqq.NewClient(ctx, queue)
 		if err != nil {

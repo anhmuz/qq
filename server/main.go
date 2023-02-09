@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"qq/pkg/log"
 	"qq/pkg/rabbitqq"
+	"qq/repos/cacheqq"
 	"qq/repos/qq"
 	rabbitqqSrv "qq/server/servers/rabbitqq"
 	qqServ "qq/services/qq"
@@ -19,7 +20,9 @@ func main() {
 		panic(fmt.Errorf("failed to create new qq database: %w", err))
 	}
 
-	service, err := qqServ.NewService(database)
+	cache := cacheqq.NewRedisCache()
+
+	service, err := qqServ.NewService(database, cache)
 	if err != nil {
 		log.Critical(ctx, "failed to create new qq service", log.Args{"error": err})
 		panic(fmt.Errorf("failed to create new qq service: %w", err))
