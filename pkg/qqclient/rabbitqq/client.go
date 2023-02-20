@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"math/rand"
 	"qq/pkg/log"
+	"qq/pkg/protocol"
+	"qq/pkg/qqclient"
 	"qq/pkg/qqcontext"
 	"sync"
 
@@ -13,14 +15,6 @@ import (
 )
 
 const CallbackQueue = "callback_queue"
-
-type Client interface {
-	Add(ctx context.Context, entity Entity) (bool, error)
-	Remove(ctx context.Context, key string) (bool, error)
-	Get(ctx context.Context, key string) (*Entity, error)
-	GetAsync(ctx context.Context, key string) (chan AsyncReply[*Entity], error)
-	GetAll(ctx context.Context) ([]Entity, error)
-}
 
 type client struct {
 	queue         string
@@ -30,16 +24,11 @@ type client struct {
 	callbackQueue map[string]callback
 }
 
-var _ Client = &client{}
+var _ qqclient.Client = &client{}
 
 type callback func([]byte)
 
-type AsyncReply[Result any] struct {
-	Result Result
-	Err    error
-}
-
-func NewClient(ctx context.Context, queue string) (cl Client, err error) {
+func NewClient(ctx context.Context, queue string) (cl qqclient.Client, err error) {
 	log.Debug(ctx, "create new rabbitmq client", log.Args{"queue": queue})
 
 	ch, msgs, err := connect(queue)
@@ -110,16 +99,16 @@ func connect(queue string) (*amqp.Channel, <-chan amqp.Delivery, error) {
 	return ch, msgs, nil
 }
 
-func (c *client) Add(ctx context.Context, entity Entity) (bool, error) {
-	message := AddMessage{
-		BaseMessage: BaseMessage{Name: AddMessageName},
+func (c *client) Add(ctx context.Context, entity protocol.Entity) (bool, error) {
+	message := protocol.AddMessage{
+		BaseMessage: protocol.BaseMessage{Name: protocol.AddMessageName},
 		Key:         entity.Key,
 		Value:       entity.Value,
 	}
 
 	log.Debug(ctx, "rabbitmq client", log.Args{"message": message})
 
-	proc := func(reply AddReplyMessage) bool {
+	proc := func(reply protocol.AddReplyMessage) bool {
 		return reply.Added
 	}
 
@@ -134,14 +123,14 @@ func (c *client) Add(ctx context.Context, entity Entity) (bool, error) {
 }
 
 func (c *client) Remove(ctx context.Context, key string) (bool, error) {
-	message := RemoveMessage{
-		BaseMessage: BaseMessage{Name: RemoveMessageName},
+	message := protocol.RemoveMessage{
+		BaseMessage: protocol.BaseMessage{Name: protocol.RemoveMessageName},
 		Key:         key,
 	}
 
 	log.Debug(ctx, "rabbitmq client", log.Args{"message": message})
 
-	proc := func(reply RemoveReplyMessage) bool {
+	proc := func(reply protocol.RemoveReplyMessage) bool {
 		return reply.Removed
 	}
 
@@ -155,7 +144,7 @@ func (c *client) Remove(ctx context.Context, key string) (bool, error) {
 	return asyncReply.Result, asyncReply.Err
 }
 
-func (c *client) Get(ctx context.Context, key string) (*Entity, error) {
+func (c *client) Get(ctx context.Context, key string) (*protocol.Entity, error) {
 	asyncReplyCh, err := c.GetAsync(ctx, key)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get key %s: %w", key, err)
@@ -166,20 +155,20 @@ func (c *client) Get(ctx context.Context, key string) (*Entity, error) {
 	return asyncReply.Result, asyncReply.Err
 }
 
-func (c *client) GetAsync(ctx context.Context, key string) (chan AsyncReply[*Entity], error) {
-	message := GetMessage{
-		BaseMessage: BaseMessage{Name: GetMessageName},
+func (c *client) GetAsync(ctx context.Context, key string) (chan qqclient.AsyncReply[*protocol.Entity], error) {
+	message := protocol.GetMessage{
+		BaseMessage: protocol.BaseMessage{Name: protocol.GetMessageName},
 		Key:         key,
 	}
 
 	log.Debug(ctx, "rabbitmq client", log.Args{"message": message})
 
-	proc := func(reply GetReplyMessage) *Entity {
+	proc := func(reply protocol.GetReplyMessage) *protocol.Entity {
 		if reply.Value == nil {
 			return nil
 		}
 
-		return &Entity{
+		return &protocol.Entity{
 			Key:   key,
 			Value: *reply.Value,
 		}
@@ -193,14 +182,14 @@ func (c *client) GetAsync(ctx context.Context, key string) (chan AsyncReply[*Ent
 	return asyncReplyCh, nil
 }
 
-func (c *client) GetAll(ctx context.Context) ([]Entity, error) {
-	message := GetAllMessage{
-		BaseMessage: BaseMessage{Name: GetAllMessageName},
+func (c *client) GetAll(ctx context.Context) ([]protocol.Entity, error) {
+	message := protocol.GetAllMessage{
+		BaseMessage: protocol.BaseMessage{Name: protocol.GetAllMessageName},
 	}
 
 	log.Debug(ctx, "rabbitmq client", log.Args{"message": message})
 
-	proc := func(reply GetAllReplyMessage) []Entity {
+	proc := func(reply protocol.GetAllReplyMessage) []protocol.Entity {
 		return reply.Entities
 	}
 
@@ -219,8 +208,8 @@ func sendMessage[Message any, Reply any, Result any](
 	c *client,
 	message Message,
 	proc func(Reply) Result,
-) (chan AsyncReply[Result], error) {
-	ch := make(chan AsyncReply[Result], 1)
+) (chan qqclient.AsyncReply[Result], error) {
+	ch := make(chan qqclient.AsyncReply[Result], 1)
 
 	callback := func(body []byte) {
 		var reply Reply
@@ -229,7 +218,7 @@ func sendMessage[Message any, Reply any, Result any](
 			err = fmt.Errorf("failed to parse JSON: %w", err)
 		}
 
-		asyncReply := AsyncReply[Result]{
+		asyncReply := qqclient.AsyncReply[Result]{
 			Result: proc(reply),
 			Err:    err,
 		}

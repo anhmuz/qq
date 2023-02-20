@@ -2,8 +2,11 @@ package cmd
 
 import (
 	"qq/pkg/log"
+	"qq/pkg/protocol"
+	"qq/pkg/qqclient"
+	"qq/pkg/qqclient/http"
+	"qq/pkg/qqclient/rabbitqq"
 	"qq/pkg/qqcontext"
-	"qq/pkg/rabbitqq"
 
 	"github.com/spf13/cobra"
 )
@@ -17,25 +20,34 @@ var addCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		ctx := qqcontext.WithUserIdValue(cmd.Context(), userId)
 
-		queue, err := rootCmd.Flags().GetString("queue")
+		clientType, err := rootCmd.Flags().GetString("client_type")
 		if err != nil {
 			return err
 		}
 
-		ctx := qqcontext.WithUserIdValue(cmd.Context(), userId)
+		var c qqclient.Client
+		if clientType == rabbitqq.ClientType {
+			queue, err := rootCmd.Flags().GetString("queue")
+			if err != nil {
+				return err
+			}
+
+			c, err = rabbitqq.NewClient(ctx, queue)
+			if err != nil {
+				log.Error(ctx, "failed to create new client", log.Args{"error": err})
+				return err
+			}
+		} else if clientType == http.ClientType {
+			c = http.NewClient(ctx)
+		}
 
 		log.Debug(ctx, "add called")
 
-		c, err := rabbitqq.NewClient(ctx, queue)
-		if err != nil {
-			log.Error(ctx, "failed to create new client", log.Args{"error": err})
-			return err
-		}
-
 		key := args[0]
 		value := args[1]
-		added, err := c.Add(ctx, rabbitqq.Entity{Key: key, Value: value})
+		added, err := c.Add(ctx, protocol.Entity{Key: key, Value: value})
 		if err != nil {
 			log.Error(ctx, "failed to add", log.Args{"error": err, "key": key, "value": value})
 			return err

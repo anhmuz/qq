@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"qq/models"
-	"qq/pkg/rabbitqq"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -26,8 +25,8 @@ var _ Cache = cache{}
 
 func NewRedisCache() Cache {
 	redisClient := redis.NewClient(&redis.Options{
-		Addr:     rabbitqq.RedisServerAddr,
-		Password: rabbitqq.RedisServerPassword,
+		Addr:     RedisServerAddr,
+		Password: RedisServerPassword,
 		DB:       0,
 	})
 

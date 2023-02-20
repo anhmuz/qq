@@ -3,8 +3,10 @@ package cmd
 import (
 	"fmt"
 	"qq/pkg/log"
+	"qq/pkg/qqclient"
+	"qq/pkg/qqclient/http"
+	"qq/pkg/qqclient/rabbitqq"
 	"qq/pkg/qqcontext"
-	"qq/pkg/rabbitqq"
 
 	"github.com/spf13/cobra"
 )
@@ -14,25 +16,34 @@ var getAllCmd = &cobra.Command{
 	Short: "get all items",
 	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		queue, err := rootCmd.Flags().GetString("queue")
-		if err != nil {
-			return err
-		}
-
 		userId, err := rootCmd.Flags().GetString("user_id")
 		if err != nil {
 			return err
 		}
-
 		ctx := qqcontext.WithUserIdValue(cmd.Context(), userId)
 
-		log.Debug(ctx, "get-all called")
-
-		c, err := rabbitqq.NewClient(ctx, queue)
+		clientType, err := rootCmd.Flags().GetString("client_type")
 		if err != nil {
-			log.Error(ctx, "failed to create new client", log.Args{"error": err})
 			return err
 		}
+
+		var c qqclient.Client
+		if clientType == rabbitqq.ClientType {
+			queue, err := rootCmd.Flags().GetString("queue")
+			if err != nil {
+				return err
+			}
+
+			c, err = rabbitqq.NewClient(ctx, queue)
+			if err != nil {
+				log.Error(ctx, "failed to create new client", log.Args{"error": err})
+				return err
+			}
+		} else if clientType == http.ClientType {
+			c = http.NewClient(ctx)
+		}
+
+		log.Debug(ctx, "get-all called")
 
 		entities, err := c.GetAll(ctx)
 		if err != nil {

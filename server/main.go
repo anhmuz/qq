@@ -4,10 +4,13 @@ import (
 	"context"
 	"fmt"
 	"qq/pkg/log"
-	"qq/pkg/rabbitqq"
+
+	//"qq/pkg/qqclient/rabbitqq"
 	"qq/repos/cacheqq"
 	"qq/repos/qq"
-	rabbitqqSrv "qq/server/servers/rabbitqq"
+	"qq/server/qqserver/http"
+
+	//rabbitqqSrv "qq/server/qqserver/rabbitqq"
 	qqServ "qq/services/qq"
 )
 
@@ -28,10 +31,16 @@ func main() {
 		panic(fmt.Errorf("failed to create new qq service: %w", err))
 	}
 
-	server, err := rabbitqqSrv.NewServer(ctx, rabbitqq.RpcQueue, service)
+	/*server, err := rabbitqqSrv.NewServer(ctx, rabbitqq.RpcQueue, service)
 	if err != nil {
 		log.Critical(ctx, "failed to create new RabbitMQ server", log.Args{"error": err})
 		panic(fmt.Errorf("failed to create new RabbitMQ server: %w", err))
+	}*/
+
+	server, err := http.NewServer(ctx, service)
+	if err != nil {
+		log.Critical(ctx, "failed to create new http server", log.Args{"error": err})
+		panic(fmt.Errorf("failed to create new http server: %w", err))
 	}
 
 	err = server.Serve()

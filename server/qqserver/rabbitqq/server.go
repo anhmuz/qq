@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"qq/pkg/log"
+	"qq/pkg/protocol"
+	"qq/pkg/qqclient/rabbitqq"
 	"qq/pkg/qqcontext"
-	"qq/pkg/rabbitqq"
+	"qq/server/qqserver"
 	"qq/services/qq"
 	"sync"
 
@@ -15,19 +17,15 @@ import (
 
 const ThreadCount = 20
 
-type Server interface {
-	Serve() error
-}
-
 type server struct {
 	queue   string
 	service qq.Service
 	channel *amqp.Channel
 }
 
-var _ Server = server{}
+var _ qqserver.Server = server{}
 
-func NewServer(ctx context.Context, queue string, service qq.Service) (Server, error) {
+func NewServer(ctx context.Context, queue string, service qq.Service) (qqserver.Server, error) {
 	log.Debug(ctx, "create new rabbitmq server", log.Args{"queue": queue})
 
 	ch, err := connect(queue)
@@ -139,7 +137,7 @@ func handleMessage[Message any, ReplyMessage any](ctx context.Context, s server,
 }
 
 func (s server) handleRawMessage(ctx context.Context, body []byte, corrId string, replyTo string) error {
-	var baseMessage rabbitqq.BaseMessage
+	var baseMessage protocol.BaseMessage
 	err := json.Unmarshal(body, &baseMessage)
 	if err != nil {
 		return fmt.Errorf("failed to parse JSON: %w", err)
@@ -148,9 +146,9 @@ func (s server) handleRawMessage(ctx context.Context, body []byte, corrId string
 	switch baseMessage.Name {
 	case "add":
 		err = handleMessage(ctx, s, body, corrId, replyTo,
-			func(addMessage rabbitqq.AddMessage) rabbitqq.AddReplyMessage {
-				entity := FromAddMessage(addMessage)
-				return ToAddReplyMessage(s.service.Add(ctx, entity))
+			func(addMessage protocol.AddMessage) protocol.AddReplyMessage {
+				entity := qqserver.FromAddMessage(addMessage)
+				return qqserver.ToAddReplyMessage(s.service.Add(ctx, entity))
 			})
 		if err != nil {
 			return fmt.Errorf("failed to handle add message: %w", err)
@@ -158,9 +156,9 @@ func (s server) handleRawMessage(ctx context.Context, body []byte, corrId string
 
 	case "remove":
 		err = handleMessage(ctx, s, body, corrId, replyTo,
-			func(removeMessage rabbitqq.RemoveMessage) rabbitqq.RemoveReplyMessage {
-				key := FromRemoveMessage(removeMessage)
-				return ToRemoveReplyMessage(s.service.Remove(ctx, key))
+			func(removeMessage protocol.RemoveMessage) protocol.RemoveReplyMessage {
+				key := qqserver.FromRemoveMessage(removeMessage)
+				return qqserver.ToRemoveReplyMessage(s.service.Remove(ctx, key))
 			})
 		if err != nil {
 			return fmt.Errorf("failed to handle remove message: %w", err)
@@ -168,9 +166,9 @@ func (s server) handleRawMessage(ctx context.Context, body []byte, corrId string
 
 	case "get":
 		err = handleMessage(ctx, s, body, corrId, replyTo,
-			func(getMessage rabbitqq.GetMessage) rabbitqq.GetReplyMessage {
-				key := FromGetMessage(getMessage)
-				return ToGetReplyMessage(s.service.Get(ctx, key))
+			func(getMessage protocol.GetMessage) protocol.GetReplyMessage {
+				key := qqserver.FromGetMessage(getMessage)
+				return qqserver.ToGetReplyMessage(s.service.Get(ctx, key))
 			})
 		if err != nil {
 			return fmt.Errorf("failed to handle get message: %w", err)
@@ -178,8 +176,8 @@ func (s server) handleRawMessage(ctx context.Context, body []byte, corrId string
 
 	case "get all":
 		err = handleMessage(ctx, s, body, corrId, replyTo,
-			func(getAllMessage rabbitqq.GetAllMessage) rabbitqq.GetAllReplyMessage {
-				return ToGetAllReplyMessage(s.service.GetAll(ctx))
+			func(getAllMessage protocol.GetAllMessage) protocol.GetAllReplyMessage {
+				return qqserver.ToGetAllReplyMessage(s.service.GetAll(ctx))
 			})
 		if err != nil {
 			return fmt.Errorf("failed to handle add message: %w", err)

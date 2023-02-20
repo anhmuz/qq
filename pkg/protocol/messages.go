@@ -1,4 +1,4 @@
-package rabbitqq
+package protocol
 
 type BaseMessage struct {
 	Name string `json:"name"`
