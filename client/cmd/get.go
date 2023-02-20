@@ -34,16 +34,16 @@ var getCmd = &cobra.Command{
 		}
 
 		key := args[0]
-		value, err := c.Get(ctx, key)
+		entity, err := c.Get(ctx, key)
 		if err != nil {
-			log.Error(ctx, "failed to get", log.Args{"error": err, "key": key})
+			log.Error(ctx, "failed to get reply", log.Args{"error": err, "key": key})
 			return err
 		}
 
-		if value != nil {
-			log.Info(ctx, "get command result", log.Args{"key": key, "value": *value})
+		if entity != nil {
+			log.Info(ctx, "get command result", log.Args{"key": key, "entity": *entity})
 		} else {
-			log.Info(ctx, "value does not exist", log.Args{"key": key})
+			log.Info(ctx, "entity does not exist", log.Args{"key": key})
 		}
 
 		return nil

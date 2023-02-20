@@ -10,7 +10,7 @@ import (
 
 type keyReply struct {
 	key               string
-	asyncReplyChannel chan rabbitqq.AsyncReply[rabbitqq.GetReplyMessage]
+	asyncReplyChannel chan rabbitqq.AsyncReply[*rabbitqq.Entity]
 }
 
 var batchGetCmd = &cobra.Command{
@@ -63,13 +63,13 @@ var batchGetCmd = &cobra.Command{
 				continue
 			}
 
-			value := asyncReply.Reply.Value
-			if value == nil {
-				log.Info(ctx, "value does not exist", log.Args{"key": keyReply.key})
+			entity := asyncReply.Result
+			if entity == nil {
+				log.Info(ctx, "entity does not exist", log.Args{"key": keyReply.key})
 				continue
 			}
 
-			log.Info(ctx, "batch-get command result", log.Args{"key": keyReply.key, "value": *value})
+			log.Info(ctx, "batch-get command result", log.Args{"key": keyReply.key, "entity": *entity})
 		}
 
 		return nil
