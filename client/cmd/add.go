@@ -16,15 +16,17 @@ var addCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		userId, err := rootCmd.Flags().GetString("user_id")
 		if err != nil {
-			return err
-		}
-
-		queue, err := rootCmd.Flags().GetString("queue")
-		if err != nil {
+			log.Error(cmd.Context(), "failed to get user ID value from command flag ", log.Args{"error": err})
 			return err
 		}
 
 		ctx := qqcontext.WithUserIdValue(cmd.Context(), userId)
+
+		queue, err := rootCmd.Flags().GetString("queue")
+		if err != nil {
+			log.Error(ctx, "failed to get queue value from command flag ", log.Args{"error": err})
+			return err
+		}
 
 		log.Debug(ctx, "add called")
 
