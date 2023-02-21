@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 	"qq/pkg/log"
-	"qq/pkg/rabbitqq"
+	"qq/pkg/qqclient/rabbitqq"
 	"qq/repos/cacheqq"
 	"qq/repos/qq"
-	rabbitqqSrv "qq/server/servers/rabbitqq"
+	rabbitqqSrv "qq/server/qqserver/rabbitqq"
 	qqServ "qq/services/qq"
 )
 

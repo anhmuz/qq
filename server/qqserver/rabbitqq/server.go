@@ -5,8 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"qq/pkg/log"
+	"qq/pkg/qqclient/rabbitqq"
 	"qq/pkg/qqcontext"
-	"qq/pkg/rabbitqq"
+	"qq/server/qqserver"
 	"qq/services/qq"
 	"sync"
 
@@ -15,19 +16,15 @@ import (
 
 const ThreadCount = 20
 
-type Server interface {
-	Serve() error
-}
-
 type server struct {
 	queue   string
 	service qq.Service
 	channel *amqp.Channel
 }
 
-var _ Server = server{}
+var _ qqserver.Server = server{}
 
-func NewServer(ctx context.Context, queue string, service qq.Service) (Server, error) {
+func NewServer(ctx context.Context, queue string, service qq.Service) (qqserver.Server, error) {
 	log.Debug(ctx, "create new rabbitmq server", log.Args{"queue": queue})
 
 	ch, err := connect(queue)

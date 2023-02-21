@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"qq/models"
-	"qq/pkg/rabbitqq"
+	"qq/pkg/qqclient/rabbitqq"
 	"time"
 
 	"github.com/redis/go-redis/v9"

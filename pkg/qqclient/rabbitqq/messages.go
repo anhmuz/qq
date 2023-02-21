@@ -1,5 +1,9 @@
 package rabbitqq
 
+import (
+	"qq/pkg/qqclient"
+)
+
 type BaseMessage struct {
 	Name string `json:"name"`
 }
@@ -45,5 +49,5 @@ type GetReplyMessage struct {
 
 type GetAllReplyMessage struct {
 	BaseReplyMessage
-	Entities []Entity `json:"entities"`
+	Entities []qqclient.Entity `json:"entities"`
 }

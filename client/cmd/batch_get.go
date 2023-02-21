@@ -2,15 +2,16 @@ package cmd
 
 import (
 	"qq/pkg/log"
+	"qq/pkg/qqclient"
+	"qq/pkg/qqclient/rabbitqq"
 	"qq/pkg/qqcontext"
-	"qq/pkg/rabbitqq"
 
 	"github.com/spf13/cobra"
 )
 
 type keyReply struct {
 	key               string
-	asyncReplyChannel chan rabbitqq.AsyncReply[*rabbitqq.Entity]
+	asyncReplyChannel chan qqclient.AsyncReply[*qqclient.Entity]
 }
 
 var batchGetCmd = &cobra.Command{

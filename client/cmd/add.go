@@ -2,8 +2,9 @@ package cmd
 
 import (
 	"qq/pkg/log"
+	"qq/pkg/qqclient"
+	"qq/pkg/qqclient/rabbitqq"
 	"qq/pkg/qqcontext"
-	"qq/pkg/rabbitqq"
 
 	"github.com/spf13/cobra"
 )
@@ -35,7 +36,7 @@ var addCmd = &cobra.Command{
 
 		key := args[0]
 		value := args[1]
-		added, err := c.Add(ctx, rabbitqq.Entity{Key: key, Value: value})
+		added, err := c.Add(ctx, qqclient.Entity{Key: key, Value: value})
 		if err != nil {
 			log.Error(ctx, "failed to add", log.Args{"error": err, "key": key, "value": value})
 			return err

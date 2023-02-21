@@ -2,7 +2,8 @@ package rabbitqq
 
 import (
 	"qq/models"
-	"qq/pkg/rabbitqq"
+	"qq/pkg/qqclient"
+	"qq/pkg/qqclient/rabbitqq"
 )
 
 func FromAddMessage(message rabbitqq.AddMessage) models.Entity {
@@ -48,10 +49,10 @@ func ToGetReplyMessage(entity *models.Entity) rabbitqq.GetReplyMessage {
 }
 
 func ToGetAllReplyMessage(entities []models.Entity) rabbitqq.GetAllReplyMessage {
-	data := make([]rabbitqq.Entity, 0, len(entities))
+	data := make([]qqclient.Entity, 0, len(entities))
 
 	for _, entity := range entities {
-		data = append(data, rabbitqq.Entity{
+		data = append(data, qqclient.Entity{
 			Key:   entity.Key,
 			Value: entity.Value,
 		})
