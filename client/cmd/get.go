@@ -2,8 +2,8 @@ package cmd
 
 import (
 	"qq/pkg/log"
+	"qq/pkg/qqclient/rabbitqq"
 	"qq/pkg/qqcontext"
-	"qq/pkg/rabbitqq"
 
 	"github.com/spf13/cobra"
 )
