@@ -14,3 +14,5 @@ const (
 	GetMessageName    string = "get"
 	GetAllMessageName string = "get all"
 )
+
+const ClientType = "rabbitmq"
