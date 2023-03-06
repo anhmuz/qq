@@ -50,13 +50,13 @@ func (s server) entities(w http.ResponseWriter, req *http.Request) {
 		if err != nil {
 			log.Error(ctx, "failed to handle get all request", log.Args{"error": err})
 		}
+
 	case http.MethodPost:
 		err := handlePostRequest(ctx, w, req, s.service)
 		if err != nil {
 			log.Error(ctx, "failed to handle post request", log.Args{"error": err})
 		}
 	}
-
 }
 
 func (s server) entity(w http.ResponseWriter, req *http.Request) {
@@ -69,6 +69,7 @@ func (s server) entity(w http.ResponseWriter, req *http.Request) {
 		if err != nil {
 			log.Error(ctx, "failed to handle get request", log.Args{"error": err})
 		}
+
 	case http.MethodDelete:
 		err := handleDeleteRequest(ctx, w, key, s.service)
 		if err != nil {
@@ -102,8 +103,7 @@ func handlePostRequest(ctx context.Context, w http.ResponseWriter, req *http.Req
 
 	err = json.Unmarshal(body, &request)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		responce.Status = "invalid JSON request"
+		responce.Status = http.StatusText(http.StatusBadRequest)
 
 		jsonResponce, err := json.Marshal(responce)
 		if err != nil {
@@ -111,9 +111,10 @@ func handlePostRequest(ctx context.Context, w http.ResponseWriter, req *http.Req
 			return fmt.Errorf("failed to produce JSON: %w", err)
 		}
 
+		w.WriteHeader(http.StatusBadRequest)
+
 		_, err = w.Write(jsonResponce)
 		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
 			return fmt.Errorf("failed to write response: %w", err)
 		}
 
@@ -123,9 +124,7 @@ func handlePostRequest(ctx context.Context, w http.ResponseWriter, req *http.Req
 	entity := FromPostRequest(request)
 	responce = ToPostResponce(service.Add(ctx, entity))
 
-	w.WriteHeader(http.StatusCreated)
-
-	return writeJsonResponce(w, responce)
+	return writeJsonResponce(w, responce, http.StatusCreated)
 }
 
 func handleGetRequest(ctx context.Context, w http.ResponseWriter, key string, service qq.Service) error {
@@ -134,14 +133,14 @@ func handleGetRequest(ctx context.Context, w http.ResponseWriter, key string, se
 	entity := service.Get(ctx, key)
 	responce = ToGetResponce(entity)
 
-	w.WriteHeader(http.StatusOK)
+	statusCode := http.StatusOK
 
 	if entity == nil {
-		responce.Status = "not found"
-		w.WriteHeader(http.StatusNotFound)
+		responce.Status = http.StatusText(http.StatusNotFound)
+		statusCode = http.StatusNotFound
 	}
 
-	return writeJsonResponce(w, responce)
+	return writeJsonResponce(w, responce, statusCode)
 }
 
 func handleDeleteRequest(ctx context.Context, w http.ResponseWriter, key string, service qq.Service) error {
@@ -149,31 +148,30 @@ func handleDeleteRequest(ctx context.Context, w http.ResponseWriter, key string,
 
 	responce = ToDeleteResponce(service.Remove(ctx, key))
 
-	w.WriteHeader(http.StatusOK)
-
-	return writeJsonResponce(w, responce)
+	return writeJsonResponce(w, responce, http.StatusOK)
 }
 
 func handleGetAllRequest(ctx context.Context, w http.ResponseWriter, service qq.Service) error {
 	var responce httpClient.GetAllResponce
 
-	responce = ToGetallResponce(service.GetAll(ctx))
+	responce = ToGetAllResponce(service.GetAll(ctx))
 
-	w.WriteHeader(http.StatusOK)
-
-	return writeJsonResponce(w, responce)
+	return writeJsonResponce(w, responce, http.StatusOK)
 }
 
-func writeJsonResponce[Responce any](w http.ResponseWriter, responce Responce) error {
+func writeJsonResponce[Responce any](w http.ResponseWriter, responce Responce, statusCode int) error {
 	jsonResponce, err := json.Marshal(responce)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return fmt.Errorf("failed to produce JSON: %w", err)
 	}
 
+	if statusCode != http.StatusOK {
+		w.WriteHeader(statusCode)
+	}
+
 	_, err = w.Write(jsonResponce)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
 		return fmt.Errorf("failed to write response: %w", err)
 	}
 

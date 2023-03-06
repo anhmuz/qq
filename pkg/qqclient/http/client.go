@@ -41,11 +41,11 @@ func (c client) Add(ctx context.Context, entity qqclient.Entity) (bool, error) {
 		return false, fmt.Errorf("failed to get responce: %w", err)
 	}
 
-	if statusCode == http.StatusCreated {
-		return responce.Added, nil
+	if statusCode != http.StatusCreated {
+		return false, fmt.Errorf(responce.Status)
 	}
 
-	return false, fmt.Errorf(responce.Status)
+	return responce.Added, nil
 }
 
 func (c client) Remove(ctx context.Context, key string) (bool, error) {
@@ -59,11 +59,11 @@ func (c client) Remove(ctx context.Context, key string) (bool, error) {
 		return false, fmt.Errorf("failed to get responce: %w", err)
 	}
 
-	if statusCode == http.StatusOK {
-		return responce.Removed, nil
+	if statusCode != http.StatusOK {
+		return false, fmt.Errorf(responce.Status)
 	}
 
-	return false, fmt.Errorf(responce.Status)
+	return responce.Removed, nil
 }
 
 func (c client) Get(ctx context.Context, key string) (*qqclient.Entity, error) {
@@ -77,26 +77,25 @@ func (c client) Get(ctx context.Context, key string) (*qqclient.Entity, error) {
 		return nil, fmt.Errorf("failed to get responce: %w", err)
 	}
 
-	if statusCode == http.StatusOK || statusCode == http.StatusNotFound {
-		return responce.Entity, nil
+	if statusCode != http.StatusOK && statusCode != http.StatusNotFound {
+		return nil, fmt.Errorf(responce.Status)
 	}
 
-	return nil, fmt.Errorf(responce.Status)
+	return responce.Entity, nil
 }
 
 func (c client) GetAsync(ctx context.Context, key string) (chan qqclient.AsyncReply[*qqclient.Entity], error) {
 	ch := make(chan qqclient.AsyncReply[*qqclient.Entity], 1)
 
 	go func() {
+		asyncReply := qqclient.AsyncReply[*qqclient.Entity]{}
+
 		result, err := c.Get(ctx, key)
 		if err != nil {
-			err = fmt.Errorf("failed to get key %s: %w", key, err)
+			asyncReply.Err = fmt.Errorf("failed to get key %s: %w", key, err)
 		}
 
-		asyncReply := qqclient.AsyncReply[*qqclient.Entity]{
-			Result: result,
-			Err:    err,
-		}
+		asyncReply.Result = result
 
 		ch <- asyncReply
 	}()
@@ -115,11 +114,11 @@ func (c client) GetAll(ctx context.Context) ([]qqclient.Entity, error) {
 		return nil, fmt.Errorf("failed to get responce: %w", err)
 	}
 
-	if statusCode == http.StatusOK {
-		return responce.Entities, nil
+	if statusCode != http.StatusOK {
+		return nil, fmt.Errorf(responce.Status)
 	}
 
-	return nil, fmt.Errorf(responce.Status)
+	return responce.Entities, nil
 }
 
 func getResponce[Request any, Responce any](

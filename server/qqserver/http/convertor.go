@@ -34,7 +34,7 @@ func ToGetResponce(entity *models.Entity) http.GetResponce {
 	return http.GetResponce{}
 }
 
-func ToGetallResponce(entities []models.Entity) http.GetAllResponce {
+func ToGetAllResponce(entities []models.Entity) http.GetAllResponce {
 	data := make([]qqclient.Entity, 0, len(entities))
 
 	for _, entity := range entities {
