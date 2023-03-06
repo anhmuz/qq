@@ -93,10 +93,12 @@ func (c client) GetAsync(ctx context.Context, key string) (chan qqclient.AsyncRe
 			ch <- qqclient.AsyncReply[*qqclient.Entity]{
 				Err: fmt.Errorf("failed to get key %s: %w", key, err),
 			}
-		} else {
-			ch <- qqclient.AsyncReply[*qqclient.Entity]{
-				Result: result,
-			}
+
+			return
+		}
+
+		ch <- qqclient.AsyncReply[*qqclient.Entity]{
+			Result: result,
 		}
 	}()
 
