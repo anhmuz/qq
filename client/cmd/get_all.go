@@ -3,8 +3,6 @@ package cmd
 import (
 	"fmt"
 	"qq/pkg/log"
-	"qq/pkg/qqclient/rabbitqq"
-	"qq/pkg/qqcontext"
 
 	"github.com/spf13/cobra"
 )
@@ -14,29 +12,15 @@ var getAllCmd = &cobra.Command{
 	Short: "get all items",
 	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		userId, err := rootCmd.Flags().GetString("user_id")
+		client, ctx, err := createClient(cmd.Context())
 		if err != nil {
-			log.Error(cmd.Context(), "failed to get user ID value from command flag ", log.Args{"error": err})
-			return err
-		}
-
-		ctx := qqcontext.WithUserIdValue(cmd.Context(), userId)
-
-		queue, err := rootCmd.Flags().GetString("queue")
-		if err != nil {
-			log.Error(ctx, "failed to get queue value from command flag ", log.Args{"error": err})
+			log.Error(ctx, "failed to create client", log.Args{"error": err})
 			return err
 		}
 
 		log.Debug(ctx, "get-all called")
 
-		c, err := rabbitqq.NewClient(ctx, queue)
-		if err != nil {
-			log.Error(ctx, "failed to create new client", log.Args{"error": err})
-			return err
-		}
-
-		entities, err := c.GetAll(ctx)
+		entities, err := client.GetAll(ctx)
 		if err != nil {
 			log.Error(ctx, "failed to get all", log.Args{"error": err})
 			return err

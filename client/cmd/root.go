@@ -3,6 +3,7 @@ package cmd
 import (
 	"os"
 	"path/filepath"
+	"qq/pkg/qqclient/http"
 	"qq/pkg/qqclient/rabbitqq"
 	"qq/pkg/qqcontext"
 
@@ -24,4 +25,5 @@ func Execute() {
 func init() {
 	rootCmd.PersistentFlags().String("queue", rabbitqq.RpcQueue, "Queue name")
 	rootCmd.PersistentFlags().String("user_id", qqcontext.DefaultUserIdValue, "User ID")
+	rootCmd.PersistentFlags().String("client_type", http.ClientType, "Client type")
 }

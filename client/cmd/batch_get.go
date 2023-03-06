@@ -3,8 +3,6 @@ package cmd
 import (
 	"qq/pkg/log"
 	"qq/pkg/qqclient"
-	"qq/pkg/qqclient/rabbitqq"
-	"qq/pkg/qqcontext"
 
 	"github.com/spf13/cobra"
 )
@@ -19,32 +17,18 @@ var batchGetCmd = &cobra.Command{
 	Short: "get items",
 	Args:  cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		userId, err := rootCmd.Flags().GetString("user_id")
+		client, ctx, err := createClient(cmd.Context())
 		if err != nil {
-			log.Error(cmd.Context(), "failed to get user ID value from command flag ", log.Args{"error": err})
-			return err
-		}
-
-		ctx := qqcontext.WithUserIdValue(cmd.Context(), userId)
-
-		queue, err := rootCmd.Flags().GetString("queue")
-		if err != nil {
-			log.Error(ctx, "failed to get queue value from command flag ", log.Args{"error": err})
+			log.Error(ctx, "failed to create client", log.Args{"error": err})
 			return err
 		}
 
 		log.Debug(ctx, "batch-get called")
 
-		c, err := rabbitqq.NewClient(ctx, queue)
-		if err != nil {
-			log.Error(ctx, "failed to create new client", log.Args{"error": err})
-			return err
-		}
-
 		keyReplies := make([]keyReply, 0, len(args))
 
 		for _, key := range args {
-			asyncReplyCh, err := c.GetAsync(ctx, key)
+			asyncReplyCh, err := client.GetAsync(ctx, key)
 
 			if err != nil {
 				continue

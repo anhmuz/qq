@@ -3,13 +3,23 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
 	"qq/pkg/log"
 	"qq/pkg/qqclient/rabbitqq"
 	"qq/repos/cacheqq"
 	"qq/repos/qq"
+	"qq/server/qqserver"
+	"qq/server/qqserver/http"
 	rabbitqqSrv "qq/server/qqserver/rabbitqq"
 	qqServ "qq/services/qq"
 )
+
+const (
+	HTTPServerURL  = "localhost:8080"
+	HTTPServerType = "http"
+)
+
+const RabbitMQServerType = "rabbitmq"
 
 func main() {
 	ctx := context.Background()
@@ -28,10 +38,27 @@ func main() {
 		panic(fmt.Errorf("failed to create new qq service: %w", err))
 	}
 
-	server, err := rabbitqqSrv.NewServer(ctx, rabbitqq.RpcQueue, service)
-	if err != nil {
-		log.Critical(ctx, "failed to create new RabbitMQ server", log.Args{"error": err})
-		panic(fmt.Errorf("failed to create new RabbitMQ server: %w", err))
+	serverType := os.Args[1]
+	var server qqserver.Server
+
+	switch serverType {
+	case HTTPServerType:
+		server, err = http.NewServer(ctx, HTTPServerURL, service)
+		if err != nil {
+			log.Critical(ctx, "failed to create new http server", log.Args{"error": err})
+			panic(fmt.Errorf("failed to create new http server: %w", err))
+		}
+	case RabbitMQServerType:
+		server, err = rabbitqqSrv.NewServer(ctx, rabbitqq.RpcQueue, service)
+		if err != nil {
+			log.Critical(ctx, "failed to create new RabbitMQ server", log.Args{"error": err})
+			panic(fmt.Errorf("failed to create new RabbitMQ server: %w", err))
+		}
+
+	default:
+		errText := "invalid server type"
+		log.Critical(ctx, errText)
+		panic(fmt.Errorf(errText))
 	}
 
 	err = server.Serve()
