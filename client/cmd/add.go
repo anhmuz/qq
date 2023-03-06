@@ -12,7 +12,7 @@ var addCmd = &cobra.Command{
 	Short: "add item",
 	Args:  cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		client, ctx, err := CreateClient(cmd.Context())
+		client, ctx, err := createClient(cmd.Context())
 		if err != nil {
 			log.Error(ctx, "failed to create client", log.Args{"error": err})
 			return err

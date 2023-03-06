@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"qq/pkg/log"
 	"qq/pkg/qqclient"
 	"qq/pkg/qqclient/http"
@@ -9,7 +10,7 @@ import (
 	"qq/pkg/qqcontext"
 )
 
-func CreateClient(cmdContext context.Context) (qqclient.Client, context.Context, error) {
+func createClient(cmdContext context.Context) (qqclient.Client, context.Context, error) {
 	userId, err := rootCmd.Flags().GetString("user_id")
 	if err != nil {
 		log.Error(cmdContext, "failed to get user ID value from command flag ", log.Args{"error": err})
@@ -26,7 +27,8 @@ func CreateClient(cmdContext context.Context) (qqclient.Client, context.Context,
 
 	var client qqclient.Client
 
-	if clientType == rabbitqq.ClientType {
+	switch clientType {
+	case rabbitqq.ClientType:
 		queue, err := rootCmd.Flags().GetString("queue")
 		if err != nil {
 			log.Error(ctx, "failed to get queue value from command flag ", log.Args{"error": err})
@@ -38,8 +40,14 @@ func CreateClient(cmdContext context.Context) (qqclient.Client, context.Context,
 			log.Error(ctx, "failed to create new client", log.Args{"error": err})
 			return nil, nil, err
 		}
-	} else if clientType == http.ClientType {
+
+	case http.ClientType:
 		client = http.NewClient(ctx)
+
+	default:
+		errText := "invalid client type"
+		log.Error(ctx, errText)
+		return nil, nil, fmt.Errorf(errText)
 	}
 
 	return client, ctx, nil

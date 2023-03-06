@@ -14,8 +14,11 @@ import (
 	qqServ "qq/services/qq"
 )
 
-const HTTPServerURL = "localhost:8080"
-const HTTPServerType = "http"
+const (
+	HTTPServerURL  = "localhost:8080"
+	HTTPServerType = "http"
+)
+
 const RabbitMQServerType = "rabbitmq"
 
 func main() {
@@ -51,6 +54,11 @@ func main() {
 			log.Critical(ctx, "failed to create new RabbitMQ server", log.Args{"error": err})
 			panic(fmt.Errorf("failed to create new RabbitMQ server: %w", err))
 		}
+
+	default:
+		errText := "invalid server type"
+		log.Critical(ctx, errText)
+		panic(fmt.Errorf(errText))
 	}
 
 	err = server.Serve()

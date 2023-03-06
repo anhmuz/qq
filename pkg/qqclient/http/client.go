@@ -88,16 +88,16 @@ func (c client) GetAsync(ctx context.Context, key string) (chan qqclient.AsyncRe
 	ch := make(chan qqclient.AsyncReply[*qqclient.Entity], 1)
 
 	go func() {
-		asyncReply := qqclient.AsyncReply[*qqclient.Entity]{}
-
 		result, err := c.Get(ctx, key)
 		if err != nil {
-			asyncReply.Err = fmt.Errorf("failed to get key %s: %w", key, err)
+			ch <- qqclient.AsyncReply[*qqclient.Entity]{
+				Err: fmt.Errorf("failed to get key %s: %w", key, err),
+			}
+		} else {
+			ch <- qqclient.AsyncReply[*qqclient.Entity]{
+				Result: result,
+			}
 		}
-
-		asyncReply.Result = result
-
-		ch <- asyncReply
 	}()
 
 	return ch, nil

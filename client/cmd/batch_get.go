@@ -3,9 +3,6 @@ package cmd
 import (
 	"qq/pkg/log"
 	"qq/pkg/qqclient"
-	"qq/pkg/qqclient/http"
-	"qq/pkg/qqclient/rabbitqq"
-	"qq/pkg/qqcontext"
 
 	"github.com/spf13/cobra"
 )
@@ -20,36 +17,10 @@ var batchGetCmd = &cobra.Command{
 	Short: "get items",
 	Args:  cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		userId, err := rootCmd.Flags().GetString("user_id")
+		client, ctx, err := createClient(cmd.Context())
 		if err != nil {
-			log.Error(cmd.Context(), "failed to get user ID value from command flag ", log.Args{"error": err})
+			log.Error(ctx, "failed to create client", log.Args{"error": err})
 			return err
-		}
-
-		ctx := qqcontext.WithUserIdValue(cmd.Context(), userId)
-
-		clientType, err := rootCmd.Flags().GetString("client_type")
-		if err != nil {
-			log.Error(ctx, "failed to get client type value from command flag ", log.Args{"error": err})
-			return err
-		}
-
-		var c qqclient.Client
-
-		if clientType == rabbitqq.ClientType {
-			queue, err := rootCmd.Flags().GetString("queue")
-			if err != nil {
-				log.Error(ctx, "failed to get queue value from command flag ", log.Args{"error": err})
-				return err
-			}
-
-			c, err = rabbitqq.NewClient(ctx, queue)
-			if err != nil {
-				log.Error(ctx, "failed to create new client", log.Args{"error": err})
-				return err
-			}
-		} else if clientType == http.ClientType {
-			c = http.NewClient(ctx)
 		}
 
 		log.Debug(ctx, "batch-get called")
@@ -57,7 +28,7 @@ var batchGetCmd = &cobra.Command{
 		keyReplies := make([]keyReply, 0, len(args))
 
 		for _, key := range args {
-			asyncReplyCh, err := c.GetAsync(ctx, key)
+			asyncReplyCh, err := client.GetAsync(ctx, key)
 
 			if err != nil {
 				continue
