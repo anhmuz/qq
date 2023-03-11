@@ -164,7 +164,7 @@ func TestGet(t *testing.T) {
 	require.NoError(t, err)
 
 	testNotFoundResponseJson, err := json.Marshal(GetResponce{
-		//Status: http.StatusText(http.StatusNotFound),
+		Status: http.StatusText(http.StatusNotFound),
 	})
 	require.NoError(t, err)
 
