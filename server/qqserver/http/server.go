@@ -24,21 +24,26 @@ var _ qqserver.Server = server{}
 func NewServer(ctx context.Context, url string, service qq.Service) (qqserver.Server, error) {
 	log.Debug(ctx, "create new http server")
 
-	mux := http.NewServeMux()
+	server := server{
+		service: service,
+	}
+
+	mux := newMux(server)
 	httpServer := http.Server{
 		Addr:    url,
 		Handler: mux,
 	}
 
-	server := server{
-		server:  httpServer,
-		service: service,
-	}
-
-	mux.HandleFunc("/entities", server.entities)
-	mux.HandleFunc("/entities/", server.entity)
+	server.server = httpServer
 
 	return server, nil
+}
+
+func newMux(s server) *http.ServeMux {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/entities", s.entities)
+	mux.HandleFunc("/entities/", s.entity)
+	return mux
 }
 
 func (s server) entities(w http.ResponseWriter, req *http.Request) {
@@ -93,6 +98,8 @@ func (s server) Serve() error {
 func handlePostRequest(ctx context.Context, w http.ResponseWriter, req *http.Request, service qq.Service) error {
 	var responce httpClient.PostResponce
 
+	defer req.Body.Close()
+
 	body, err := ioutil.ReadAll(req.Body)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -122,9 +129,16 @@ func handlePostRequest(ctx context.Context, w http.ResponseWriter, req *http.Req
 	}
 
 	entity := FromPostRequest(request)
-	responce = ToPostResponce(service.Add(ctx, entity))
+	statusCode := http.StatusOK
 
-	return writeJsonResponce(w, responce, http.StatusCreated)
+	added := service.Add(ctx, entity)
+	if added {
+		statusCode = http.StatusCreated
+	}
+
+	responce = ToPostResponce(added)
+
+	return writeJsonResponce(w, responce, statusCode)
 }
 
 func handleGetRequest(ctx context.Context, w http.ResponseWriter, key string, service qq.Service) error {
