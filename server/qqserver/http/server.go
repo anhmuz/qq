@@ -28,10 +28,9 @@ func NewServer(ctx context.Context, url string, service qq.Service) (qqserver.Se
 		service: service,
 	}
 
-	mux := newMux(server)
 	httpServer := http.Server{
 		Addr:    url,
-		Handler: mux,
+		Handler: newMux(&server),
 	}
 
 	server.server = httpServer
@@ -39,7 +38,7 @@ func NewServer(ctx context.Context, url string, service qq.Service) (qqserver.Se
 	return server, nil
 }
 
-func newMux(s server) *http.ServeMux {
+func newMux(s *server) *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/entities", s.entities)
 	mux.HandleFunc("/entities/", s.entity)
