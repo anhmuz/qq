@@ -25,30 +25,67 @@ func TestHandleGetRequest(t *testing.T) {
 		exp           *qqclient.Entity
 		expStatus     string
 		expStatusCode int
+		expGetCounter int
 	}{
 		{
 			name: "HappyRun",
 			req:  httptest.NewRequest(http.MethodGet, "http://localhost:8080/entities/a", nil),
 			service: qq.ServiceMock{
-				GetMock: func(ctx context.Context, key string) *models.Entity {
+				GetMock: func(ctx context.Context, key string, count int) *models.Entity {
+					assert.Equal(t, "a", key)
 					return &models.Entity{Key: "a", Value: "b"}
 				},
 			},
 			exp:           &qqclient.Entity{Key: "a", Value: "b"},
 			expStatus:     "",
 			expStatusCode: http.StatusOK,
+			expGetCounter: 1,
 		},
 		{
 			name: "NotFound",
 			req:  httptest.NewRequest(http.MethodGet, "http://localhost:8080/entities/c", nil),
 			service: qq.ServiceMock{
-				GetMock: func(ctx context.Context, key string) *models.Entity {
-					return nil
+				GetMock: func(ctx context.Context, key string, counter int) *models.Entity {
+					switch counter {
+					case 1:
+						assert.Equal(t, "c", key)
+						return nil
+					case 2:
+						assert.Equal(t, "C", key)
+						return nil
+					default:
+						assert.Fail(t, "unexpected call")
+						return nil
+					}
 				},
 			},
 			exp:           nil,
 			expStatus:     http.StatusText(http.StatusNotFound),
 			expStatusCode: http.StatusNotFound,
+			expGetCounter: 2,
+		},
+		{
+			name: "FoundWhenUpper",
+			req:  httptest.NewRequest(http.MethodGet, "http://localhost:8080/entities/a", nil),
+			service: qq.ServiceMock{
+				GetMock: func(ctx context.Context, key string, counter int) *models.Entity {
+					switch counter {
+					case 1:
+						assert.Equal(t, "a", key)
+						return nil
+					case 2:
+						assert.Equal(t, "A", key)
+						return &models.Entity{Key: "a", Value: "b"}
+					default:
+						assert.Fail(t, "unexpected call")
+						return nil
+					}
+				},
+			},
+			exp:           &qqclient.Entity{Key: "a", Value: "b"},
+			expStatus:     "",
+			expStatusCode: http.StatusOK,
+			expGetCounter: 2,
 		},
 	}
 
@@ -56,7 +93,7 @@ func TestHandleGetRequest(t *testing.T) {
 		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			server := server{
-				service: testCase.service,
+				service: &testCase.service,
 			}
 
 			w := httptest.NewRecorder()
@@ -75,6 +112,7 @@ func TestHandleGetRequest(t *testing.T) {
 			err = json.Unmarshal(body, &responce)
 			assert.NoError(t, err)
 
+			assert.Equal(t, testCase.expGetCounter, testCase.service.GetCounter)
 			assert.Equal(t, testCase.exp, responce.Entity)
 			assert.Equal(t, testCase.expStatus, responce.Status)
 			assert.Equal(t, testCase.expStatusCode, resp.StatusCode)
@@ -143,7 +181,7 @@ func TestHandlePostRequest(t *testing.T) {
 		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			server := server{
-				service: testCase.service,
+				service: &testCase.service,
 			}
 
 			w := httptest.NewRecorder()
@@ -196,7 +234,7 @@ func TestHandleDeleteRequest(t *testing.T) {
 		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			server := server{
-				service: testCase.service,
+				service: &testCase.service,
 			}
 
 			w := httptest.NewRecorder()
@@ -255,7 +293,7 @@ func TestHandleGetAllRequest(t *testing.T) {
 		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			server := server{
-				service: testCase.service,
+				service: &testCase.service,
 			}
 
 			w := httptest.NewRecorder()

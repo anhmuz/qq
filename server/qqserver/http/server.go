@@ -144,6 +144,9 @@ func handleGetRequest(ctx context.Context, w http.ResponseWriter, key string, se
 	var responce httpClient.GetResponce
 
 	entity := service.Get(ctx, key)
+	if entity == nil {
+		entity = service.Get(ctx, strings.ToUpper(key))
+	}
 	responce = ToGetResponce(entity)
 
 	statusCode := http.StatusOK
